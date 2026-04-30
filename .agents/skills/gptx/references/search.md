@@ -6,6 +6,12 @@ Use `gptx search` for cited research and web investigation.
 
 Treat serious research as an iterative investigation, not a single query. Run multiple focused searches from different angles, compare answers, and keep searching until the conclusion is specific, sourced, and decision-ready.
 
+Research must be both broad and deep. Broad means covering the relevant official docs, primary sources, competing tools/options, recent changes, known failure modes, and dissenting evidence. Deep means following important claims back to high-quality sources, checking constraints and edge cases, and resolving contradictions before producing a recommendation. If the search process is shallow or narrow, do not treat the research as complete.
+
+Any conclusion derived from research must include cited sources. A conclusion without source citations is invalid. Prefer official documentation, source repositories, standards/specifications, release notes, reputable technical writeups, and direct primary evidence. Avoid relying on unsourced summaries when a primary source can be found.
+
+Never fabricate, infer beyond the evidence, or present unsupported claims as facts. Every research-based conclusion must be grounded completely in valid, high-quality sources. If sources are missing, weak, outdated, or contradictory, state the uncertainty instead of filling the gap.
+
 Match the research shape to the task's divergence:
 
 - Narrow lookup: run 1-2 direct searches, then answer with citations.

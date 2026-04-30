@@ -204,3 +204,7 @@ Enable structured output with either:
 - command `--json`
 
 In JSON mode, image commands emit one object including output paths and metadata; search emits one object including query and answer text.
+
+## Friends
+
+- [linux.do](https://linux.do/)

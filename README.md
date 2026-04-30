@@ -46,6 +46,28 @@ gptx version
 gptx status
 ```
 
+## Agent Skill
+
+This repository includes a `gptx` skill for agent environments that support `npx skills`. It documents when to use `gptx`, how to configure it, and practical search/image workflows.
+
+Install it globally:
+
+```bash
+npx skills add https://github.com/c-w-xiaohei/gptx -g --skill gptx -y
+```
+
+Or install it into the current project only:
+
+```bash
+npx skills add https://github.com/c-w-xiaohei/gptx --skill gptx -y
+```
+
+Verify global installation:
+
+```bash
+npx skills list -g
+```
+
 ## Configuration
 
 Use environment variables or global flags.

@@ -31,34 +31,35 @@ Stop only when additional searches are unlikely to change the conclusion, or whe
 For independent subquestions, run searches in parallel when the agent environment supports parallel tool calls. Examples:
 
 ```sh
-gptx search "best GitHub Actions for GoReleaser Go CLI releases" --json --bg
-gptx search "Go install module from GitHub latest tag workflow" --json --bg
-gptx search "OpenAI Responses API web_search citations examples" --json --bg
+gptx search "best GitHub Actions for GoReleaser Go CLI releases" --deep --json --bg
+gptx search "Go install module from GitHub latest tag workflow" --deep --json --bg
+gptx search "OpenAI Responses API web_search citations examples" --deep --json --bg
 ```
 
 Follow-up query patterns:
 
-- Broad landscape: `gptx search "compare current options for <topic>" --json --bg`
-- Official docs: `gptx search "official documentation <tool> <feature>" --json --bg`
-- Failure mode: `gptx search "<error message> root cause fix" --json --bg`
-- Alternatives: `gptx search "<tool A> vs <tool B> tradeoffs" --json --bg`
-- Recent state: `gptx search "<topic> current status 2026" --json --bg`
+- Broad landscape: `gptx search "compare current options for <topic>" --deep --json --bg`
+- Official docs: `gptx search "official documentation <tool> <feature>" --deep --json --bg`
+- Failure mode: `gptx search "<error message> root cause fix" --deep --json --bg`
+- Alternatives: `gptx search "<tool A> vs <tool B> tradeoffs" --deep --json --bg`
+- Recent state: `gptx search "<topic> current status 2026" --deep --json --bg`
 
 ## Command Examples
 
 ```sh
-gptx search "current GoReleaser GitHub Action best practices" --bg
-gptx search "OpenAI Responses web_search examples" --json --bg
-gptx search "OpenAI Responses web_search examples" --model gpt-5.4-mini --json --bg
-gptx search "incident timeline" --instructions-file ./instructions.txt --json --bg
+gptx search "current GoReleaser GitHub Action best practices"
+gptx search "OpenAI Responses web_search examples" --deep --json --bg
+gptx search "OpenAI Responses web_search examples" --deep --model gpt-5.5 --json --bg
+gptx search "incident timeline" --deep --instructions-file ./instructions.txt --json --bg
 ```
 
-Use `--json` or `--format json` when another tool or agent needs to parse results. Use `--bg` for normal agent-driven searches so the session can continue while the remote call completes.
+Use `--json` or `--format json` when another tool or agent needs to parse results. Use ordinary foreground search for quick lookups. Use `--deep --bg` for normal agent-driven long research so the session can continue while the remote call completes.
 
 ## Behavior
 
 - Sends `POST /responses` through the configured OpenAI base URL.
 - Uses model default `gpt-5.4-mini`.
+- Deep search uses model default `gpt-5.5`, `reasoning.effort=high`, `web_search.search_context_size=high`, `max_tool_calls=8`, and `max_output_tokens=8000`.
 - Supports model override via `--model`.
 - Enables hosted `web_search`.
 - Sends `store=false`.
@@ -67,10 +68,10 @@ Use `--json` or `--format json` when another tool or agent needs to parse result
 
 ## Long-Running Search
 
-For normal agent-driven searches and long research queries, use `--bg` so the session can continue while the remote Responses API call completes:
+For normal agent-driven searches and long research queries, use `--deep --bg` so the session can continue while the remote Responses API call completes:
 
 ```sh
-gptx search "compare Go release automation options" --json --bg
+gptx search "compare Go release automation options" --deep --json --bg
 ```
 
 Then inspect the returned job ID:

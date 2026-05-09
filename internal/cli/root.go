@@ -58,7 +58,7 @@ Image output behavior:
   - Raw base64 is never printed by default.
 
 Background jobs:
-  - For normal agent-driven search and real image API calls, prefer --bg so long remote calls can continue outside the interactive session.
+  - For deep search and real image API calls, prefer --bg so long remote calls can continue outside the interactive session.
   - Use gptx job status/result/logs with the returned job ID to inspect progress, outputs, and diagnostics.
   - Use foreground execution for help, status, version, and image --dry-run planning commands.
 
@@ -81,10 +81,14 @@ Implementation notes:
 	cmd.AddCommand(newJobCommand(&root))
 	cmd.AddCommand(newRunJobCommand(&root))
 	cmd.AddCommand(newStatusCommand(&root))
-	cmd.AddCommand(newVersionCommand())
+	cmd.AddCommand(newVersionCommand(&root))
+	cmd.AddCommand(newUpdateCommand(&root))
 
-	cmd.Example = `  gptx search "latest OpenAI Responses API updates" --model gpt-5.4-mini --bg
-  gptx search "openai responses web_search examples" --json --bg
+	cmd.Example = `  gptx version
+  gptx version check
+  gptx update
+  gptx search "latest OpenAI Responses API updates" --model gpt-5.4-mini
+  gptx search "openai responses web_search examples" --deep --json --bg
   gptx image generate "a calm coastal illustration" --n 2 --out-dir ./images --bg
   gptx image generate "logo concept" --dry-run --out ./logo.png --json
   gptx image generate "logo concept" --out ./logo.png --bg
@@ -96,7 +100,7 @@ Implementation notes:
 Config examples:
   export GPTX_OPENAI_API_KEY=***
   export GPTX_OPENAI_BASE_URL=https://api.openai.com/v1
-  gptx search "what changed this week" --bg`
+  gptx search "what changed this week" --deep --bg`
 
 	return cmd
 }
@@ -180,15 +184,23 @@ func configuredLabel(configured bool) string {
 	return "missing"
 }
 
-func newVersionCommand() *cobra.Command {
-	return &cobra.Command{
+func newVersionCommand(root *rootOptions) *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "version",
 		Short: "Show gptx version",
+		Long: `Show the local gptx version without checking the network.
+
+Use gptx version check when you explicitly want to compare the local version with the latest GitHub release metadata. Set GPTX_NO_UPDATE_CHECK=1 to suppress network update checks where applicable.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if _, err := normalizeRootFormat(root.Format); err != nil {
+				return err
+			}
 			_, err := fmt.Fprintf(cmd.OutOrStdout(), "gptx %s\n", currentVersion())
 			return err
 		},
 	}
+	cmd.AddCommand(newVersionCheckCommand(root))
+	return cmd
 }
 
 func currentVersion() string {

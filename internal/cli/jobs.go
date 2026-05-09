@@ -73,15 +73,15 @@ func newJobCommand(root *rootOptions) *cobra.Command {
 		Short: "Run and inspect local background jobs",
 		Long: `Run search and image commands as local background jobs.
 
-For normal agent-driven search and real image API calls, prefer background mode
-so long remote calls can continue outside the interactive session. Use --bg on
-search, image generate, and image edit, or use job start explicitly.
+For deep search and real image API calls, prefer background mode so long remote
+calls can continue outside the interactive session. Use --bg on search --deep,
+image generate, and image edit, or use job start explicitly.
 
 Examples:
-  gptx search "latest OpenAI image docs" --json --bg
+  gptx search "latest OpenAI image docs" --deep --json --bg
   gptx image generate "poster" --dry-run --out ./poster.png --json
   gptx image generate "poster" --out ./poster.png --json --bg
-  gptx job start -- search "latest OpenAI image docs" --json
+  gptx job start -- search "latest OpenAI image docs" --deep --json
   gptx job start -- image generate "poster" --out ./poster.png --json
   gptx job status <job_id>
   gptx job result <job_id>
@@ -111,6 +111,9 @@ func newJobStartCommand(root *rootOptions) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if rootAPIKeyFlagChanged(cmd) {
 				return errors.New("--api-key is not supported for background jobs; use GPTX_OPENAI_API_KEY instead")
+			}
+			if err := validateJobCommand(args); err != nil {
+				return err
 			}
 			if containsDryRunFlag(args) {
 				return errors.New("--dry-run is not supported for background jobs; run dry-run in the foreground, then remove --dry-run for the real background call")
@@ -624,6 +627,9 @@ func validateJobCommand(args []string) error {
 		return errors.New("--bg is not supported inside job start commands")
 	}
 	if args[0] == "search" {
+		if !containsSearchDeepFlag(args[1:]) {
+			return errors.New("search background jobs require --deep")
+		}
 		return nil
 	}
 	if len(args) >= 2 && args[0] == "image" && (args[1] == "generate" || args[1] == "edit") {
@@ -669,6 +675,31 @@ func containsBackgroundFlag(args []string) bool {
 		}
 	}
 	return false
+}
+
+func containsSearchDeepFlag(args []string) bool {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--deep" || arg == "--deep=true" {
+			return true
+		}
+		if searchFlagConsumesNextArg(arg) {
+			i++
+		}
+	}
+	return false
+}
+
+func searchFlagConsumesNextArg(arg string) bool {
+	if strings.Contains(arg, "=") {
+		return false
+	}
+	switch arg {
+	case "--model", "--instructions", "--instructions-file", "--reasoning-effort", "--search-context-size", "--max-tool-calls", "--max-output-tokens":
+		return true
+	default:
+		return false
+	}
 }
 
 func containsDryRunFlag(args []string) bool {

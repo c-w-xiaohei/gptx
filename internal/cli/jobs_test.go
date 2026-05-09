@@ -75,6 +75,56 @@ func TestJobStartRejectsAPIKeyFlag(t *testing.T) {
 	}
 }
 
+func TestJobStartRejectsSearchWithoutDeep(t *testing.T) {
+	t.Setenv("GPTX_OPENAI_API_KEY", "secret")
+	t.Setenv("GPTX_JOB_DIR", t.TempDir())
+	t.Setenv("GPTX_JOB_TEST_NO_START", "1")
+
+	cmd := NewRootCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"job", "start", "--", "search", "query"})
+
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "search background jobs require --deep") {
+		t.Fatalf("unexpected err: %v", err)
+	}
+}
+
+func TestJobStartRejectsSearchWithoutDeepBeforeAPIKey(t *testing.T) {
+	t.Setenv("GPTX_OPENAI_API_KEY", "")
+	t.Setenv("GPTX_JOB_DIR", t.TempDir())
+
+	cmd := NewRootCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"job", "start", "--", "search", "query"})
+
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "search background jobs require --deep") {
+		t.Fatalf("unexpected err: %v", err)
+	}
+}
+
+func TestJobStartRejectsDeepFlagAsFlagValue(t *testing.T) {
+	t.Setenv("GPTX_OPENAI_API_KEY", "secret")
+	t.Setenv("GPTX_JOB_DIR", t.TempDir())
+	t.Setenv("GPTX_JOB_TEST_NO_START", "1")
+
+	cmd := NewRootCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"job", "start", "--", "search", "query", "--model", "--deep"})
+
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "search background jobs require --deep") {
+		t.Fatalf("unexpected err: %v", err)
+	}
+}
+
 func TestJobStartRejectsRootFlagsInsideStoredCommand(t *testing.T) {
 	t.Setenv("GPTX_OPENAI_API_KEY", "secret")
 	t.Setenv("GPTX_JOB_DIR", t.TempDir())
@@ -145,7 +195,7 @@ func TestJobStartCreatesMetadataAndLogs(t *testing.T) {
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
-	cmd.SetArgs([]string{"job", "start", "--json", "--", "search", "prompt"})
+	cmd.SetArgs([]string{"job", "start", "--json", "--", "search", "prompt", "--deep"})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("job start should not fail: %v", err)
@@ -230,13 +280,51 @@ func TestSearchBackgroundSubmitsJob(t *testing.T) {
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
-	cmd.SetArgs([]string{"search", "query", "--bg", "--json"})
+	cmd.SetArgs([]string{"search", "query", "--deep", "--bg", "--json"})
 
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("search --bg should not fail: %v", err)
+		t.Fatalf("search --deep --bg should not fail: %v", err)
 	}
 	if !strings.Contains(out.String(), "job_id") {
 		t.Fatalf("expected job output, got %q", out.String())
+	}
+}
+
+func TestSearchBackgroundWithoutDeepErrors(t *testing.T) {
+	t.Setenv("GPTX_JOB_DIR", t.TempDir())
+	t.Setenv("GPTX_OPENAI_API_KEY", "")
+	t.Setenv("GPTX_JOB_TEST_NO_START", "1")
+
+	cmd := NewRootCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"search", "query", "--bg"})
+
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "--bg is only supported with --deep for search") {
+		t.Fatalf("unexpected err: %v", err)
+	}
+}
+
+func TestSearchTuningFlagsRequireDeep(t *testing.T) {
+	t.Setenv("GPTX_OPENAI_API_KEY", "secret")
+	for _, args := range [][]string{
+		{"search", "query", "--reasoning-effort", "high"},
+		{"search", "query", "--search-context-size", "high"},
+		{"search", "query", "--max-tool-calls", "4"},
+		{"search", "query", "--max-output-tokens", "2000"},
+	} {
+		cmd := NewRootCommand()
+		var out bytes.Buffer
+		cmd.SetOut(&out)
+		cmd.SetErr(&out)
+		cmd.SetArgs(args)
+
+		err := cmd.Execute()
+		if err == nil || !strings.Contains(err.Error(), "require --deep") {
+			t.Fatalf("%v unexpected err: %v", args, err)
+		}
 	}
 }
 
@@ -294,12 +382,12 @@ func TestSearchBackgroundStoresCommandFlags(t *testing.T) {
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
-	cmd.SetArgs([]string{"search", "query", "--model", "custom-model", "--instructions-file", instructionsFile, "--json", "--bg"})
+	cmd.SetArgs([]string{"search", "query", "--deep", "--model", "custom-model", "--instructions-file", instructionsFile, "--reasoning-effort", "medium", "--search-context-size", "low", "--max-tool-calls", "4", "--max-output-tokens", "2000", "--json", "--bg"})
 
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("search --bg should not fail: %v", err)
+		t.Fatalf("search --deep --bg should not fail: %v", err)
 	}
-	for _, want := range []string{"--model", "custom-model", "--instructions-file", instructionsFile, "--json"} {
+	for _, want := range []string{"--deep", "--model", "custom-model", "--instructions-file", instructionsFile, "--reasoning-effort", "medium", "--search-context-size", "low", "--max-tool-calls", "4", "--max-output-tokens", "2000", "--json"} {
 		if !strings.Contains(out.String(), want) {
 			t.Fatalf("stored args missing %q: %s", want, out.String())
 		}

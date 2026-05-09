@@ -83,6 +83,65 @@ func TestSearchHelpAvoidsInternalImplementationDetails(t *testing.T) {
 	}
 }
 
+func TestSearchHelpMentionsDeepModeAndBackgroundGating(t *testing.T) {
+	cmd := NewRootCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"search", "--help"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("search help should not fail: %v", err)
+	}
+
+	help := out.String()
+	for _, want := range []string{"--deep", "gpt-5.5", "--reasoning-effort", "--search-context-size", "--max-tool-calls", "--max-output-tokens", "--bg is only supported with --deep"} {
+		if !strings.Contains(help, want) {
+			t.Fatalf("search help missing %q, got %q", want, help)
+		}
+	}
+}
+
+func TestSearchJSONIncludesDeepMetadata(t *testing.T) {
+	t.Setenv("GPTX_OPENAI_API_KEY", "secret")
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("event: response.output_text.done\n"))
+		_, _ = w.Write([]byte("data: {\"type\":\"response.output_text.done\",\"text\":\"deep answer\"}\n\n"))
+	}))
+	defer ts.Close()
+
+	cmd := NewRootCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"--base-url", ts.URL, "search", "query", "--deep", "--reasoning-effort", "medium", "--search-context-size", "low", "--max-tool-calls", "4", "--max-output-tokens", "2000", "--json"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("deep search json should not fail: %v", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
+		t.Fatalf("decode json: %v\n%s", err, out.String())
+	}
+	wants := map[string]any{
+		"deep":                true,
+		"model":               openaiapi.DefaultDeepSearchModel,
+		"reasoning_effort":    "medium",
+		"search_context_size": "low",
+		"max_tool_calls":      float64(4),
+		"max_output_tokens":   float64(2000),
+		"query":               "query",
+		"text":                "deep answer",
+	}
+	for key, want := range wants {
+		if payload[key] != want {
+			t.Fatalf("%s = %#v, want %#v in %#v", key, payload[key], want, payload)
+		}
+	}
+}
+
 func TestStatusShowsConfiguredAuthenticationWithoutSecret(t *testing.T) {
 	t.Setenv("GPTX_OPENAI_BASE_URL", "https://example.test/v1")
 	t.Setenv("GPTX_OPENAI_API_KEY", "secret-key")

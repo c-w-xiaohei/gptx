@@ -10,6 +10,8 @@ Supported commands:
 - `gptx image edit`: `/images/edits` multipart uploads, saving returned images.
 - `gptx job`: local background jobs for search and real image API calls.
 - `gptx version`: prints the CLI version string.
+- `gptx version check`: checks latest release metadata and prints update guidance.
+- `gptx update`: prints the supported Go install/update command.
 
 This repo is CLI-only. Do not add server mode, MCP transport, MCP runtime targets, or user-facing MCP configuration.
 
@@ -48,6 +50,8 @@ go run ./cmd/gptx search --help
 go run ./cmd/gptx image generate --help
 go run ./cmd/gptx image edit --help
 go run ./cmd/gptx job --help
+go run ./cmd/gptx version check --help
+go run ./cmd/gptx update --help
 ```
 
 Run dry-run image commands without an API key:
@@ -58,7 +62,7 @@ go run ./cmd/gptx --format json image edit "remove background" --dry-run --out /
 
 Run a real API command only when `GPTX_OPENAI_API_KEY` is intentionally set:
 ```bash
-GPTX_OPENAI_API_KEY=... go run ./cmd/gptx search "OpenAI Responses API web_search docs" --bg
+GPTX_OPENAI_API_KEY=... go run ./cmd/gptx search "OpenAI Responses API web_search docs" --deep --bg
 ```
 
 ## Test Commands
@@ -114,6 +118,7 @@ Use the official OpenAI Go SDK: `github.com/openai/openai-go/v3`.
 Search requirements:
 - Endpoint: `POST /responses` through the configured OpenAI-compatible base URL.
 - Default model: `gpt-5.4-mini`.
+- Deep search defaults: model `gpt-5.5`, `reasoning.effort=high`, `web_search.search_context_size=high`, `max_tool_calls=8`, and `max_output_tokens=8000`.
 - Must support model override via `gptx search --model`.
 - Tool: `web_search`, not `web_search_preview`.
 - Input shape: list-style Responses input item, not plain string.
@@ -147,7 +152,10 @@ Help text is product surface. Agents learn this CLI from `--help`.
 - Text mode search prints the answer to stdout.
 - Text mode image commands print saved paths to stdout, one per line.
 - JSON mode emits one JSON object to stdout on success.
-- For normal agent-driven search and real image API calls, prefer `--bg` so long remote calls can continue as local background jobs.
+- For normal agent-driven deep search and real image API calls, prefer `--bg` so long remote calls can continue as local background jobs.
+- Ordinary search is foreground-oriented; search `--bg` is only supported with `--deep`.
+- `gptx version` must stay fast and local; use `gptx version check` for explicit network/cache update checks.
+- `gptx update` prints `go install github.com/c-w-xiaohei/gptx/cmd/gptx@latest` and must not require an API key or network.
 - `gptx job status/result/logs` inspect local background jobs by job ID.
 - Errors and diagnostics go to stderr and must return non-zero.
 - Missing API key must be visible and actionable.

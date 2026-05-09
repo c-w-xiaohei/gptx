@@ -19,14 +19,15 @@ Check local state first, without printing secrets:
 ```sh
 command -v gptx
 gptx version
+gptx version check
 gptx status
 ```
 
-Use JSON when another tool or agent will parse the result. For normal searches and real image API calls, prefer local background jobs with `--bg` so the session can continue while the remote call completes:
+Use JSON when another tool or agent will parse the result. For long research, use `search --deep --bg`; ordinary search is foreground-oriented and rejects `--bg` unless `--deep` is set. For real image API calls, prefer local background jobs with `--bg` so the session can continue while the remote call completes:
 
 ```sh
 gptx status --json
-gptx search "current GoReleaser GitHub Action recommendations" --json --bg
+gptx search "current GoReleaser GitHub Action recommendations" --deep --json --bg
 gptx image generate "test" --dry-run --n 2 --out-dir /tmp --json
 gptx image generate "test" --n 2 --out-dir /tmp --json --bg
 gptx image generate "match this design system" --image ./design-system.png --dry-run --out /tmp/ref.png --json
@@ -48,7 +49,7 @@ gptx job logs <job_id>
 gptx job logs <job_id> --stderr
 ```
 
-These examples have been verified in this project: `gptx version`, `gptx status`, `gptx status --json`, `gptx search ... --json --bg`, and image `--dry-run` planning followed by real `--bg` runs.
+These examples have been verified in this project: `gptx version`, `gptx version check`, `gptx status`, `gptx status --json`, `gptx search ... --deep --json --bg`, and image `--dry-run` planning followed by real `--bg` runs.
 
 ## Additional Resources
 

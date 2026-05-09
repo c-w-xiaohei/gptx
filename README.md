@@ -43,7 +43,14 @@ Verify:
 
 ```bash
 gptx version
+gptx version check
 gptx status
+```
+
+Update by running:
+
+```bash
+gptx update
 ```
 
 ## Agent Skill
@@ -111,6 +118,8 @@ go run ./cmd/gptx version
 - `gptx image edit <prompt>`
 - `gptx job <start|list|status|result|logs|cancel|rm>`
 - `gptx version`
+- `gptx version check`
+- `gptx update`
 
 Run help:
 
@@ -120,6 +129,8 @@ gptx search --help
 gptx image generate --help
 gptx image edit --help
 gptx job --help
+gptx version check --help
+gptx update --help
 ```
 
 ## Search Behavior
@@ -134,16 +145,27 @@ gptx job --help
 
 `--model` is supported to override the default search model.
 
+Deep search is for longer cited research. Enable it with `--deep`:
+
+- model defaults to `gpt-5.5`
+- `reasoning.effort=high`
+- `web_search.search_context_size=high`
+- `max_tool_calls=8`
+- `max_output_tokens=8000`
+- supports `--bg` for local background jobs
+
+Ordinary search stays foreground-oriented for quick lookups. `--bg` is only valid with `--deep` for search.
+
 Examples:
 
 ```bash
-gptx search "latest updates on OpenAI Responses API" --bg
-gptx search "latest updates on OpenAI Responses API" --model gpt-5.4-mini --bg
-gptx search "summarize this topic" --instructions "Be concise and structured." --bg
-gptx search "incident timeline" --instructions-file ./instructions.txt --json --bg
+gptx search "latest updates on OpenAI Responses API"
+gptx search "latest updates on OpenAI Responses API" --model gpt-5.4-mini
+gptx search "best practices for OpenAI Responses prompts" --deep --bg
+gptx search "incident timeline" --deep --instructions-file ./instructions.txt --json --bg
 ```
 
-Use `--bg` for normal agent-driven searches and long research queries. The command prints a local job ID; inspect it with `gptx job status <job_id>`, `gptx job result <job_id>`, and `gptx job logs <job_id> --stderr`.
+Use `--deep --bg` for normal agent-driven long research queries. The command prints a local job ID; inspect it with `gptx job status <job_id>`, `gptx job result <job_id>`, and `gptx job logs <job_id> --stderr`.
 
 ## Image Generate Behavior
 
@@ -208,12 +230,12 @@ Run image commands with `--dry-run --json` first to validate paths. For the real
 
 ## Background Jobs
 
-`gptx` can run `search`, `image generate`, and `image edit` as local background jobs. This is intended for normal agent-driven research and real image API calls that may outlive the interactive session.
+`gptx` can run deep search, `image generate`, and `image edit` as local background jobs. This is intended for normal agent-driven research and real image API calls that may outlive the interactive session.
 
 Shortcut examples:
 
 ```bash
-gptx search "latest OpenAI image docs" --json --bg
+gptx search "latest OpenAI image docs" --deep --json --bg
 gptx image generate "poster" --out ./poster.png --json --bg
 gptx image edit "remove background" --image ./in.png --out ./edited.png --json --bg
 ```
@@ -221,7 +243,7 @@ gptx image edit "remove background" --image ./in.png --out ./edited.png --json -
 Explicit job examples:
 
 ```bash
-gptx job start -- search "latest OpenAI image docs" --json
+gptx job start -- search "latest OpenAI image docs" --deep --json
 gptx job start -- image generate "poster" --out ./poster.png --json
 gptx job status <job_id>
 gptx job result <job_id>

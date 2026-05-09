@@ -118,6 +118,107 @@ func TestSearchUsesDefaults(t *testing.T) {
 	}
 }
 
+func TestDeepSearchUsesHighEffortResponsesParameters(t *testing.T) {
+	var body map[string]any
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("event: response.output_text.done\n"))
+		_, _ = w.Write([]byte("data: {\"type\":\"response.output_text.done\",\"text\":\"deep ok\"}\n\n"))
+	}))
+	defer ts.Close()
+
+	c := NewClient(ts.URL, "test-key", ts.Client())
+	res, err := c.Search(context.Background(), SearchRequest{Input: "research deeply", Deep: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if res.Text != "deep ok" {
+		t.Fatalf("text = %q", res.Text)
+	}
+	if body["model"] != DefaultDeepSearchModel {
+		t.Fatalf("model = %#v", body["model"])
+	}
+	reasoning, ok := body["reasoning"].(map[string]any)
+	if !ok || reasoning["effort"] != "high" {
+		t.Fatalf("reasoning = %#v", body["reasoning"])
+	}
+	tools, ok := body["tools"].([]any)
+	if !ok || len(tools) != 1 {
+		t.Fatalf("tools = %#v", body["tools"])
+	}
+	tool := tools[0].(map[string]any)
+	if tool["type"] != "web_search" || tool["search_context_size"] != "high" {
+		t.Fatalf("tool = %#v", tool)
+	}
+	if int(body["max_tool_calls"].(float64)) != 8 {
+		t.Fatalf("max_tool_calls = %#v", body["max_tool_calls"])
+	}
+	if int(body["max_output_tokens"].(float64)) != 8000 {
+		t.Fatalf("max_output_tokens = %#v", body["max_output_tokens"])
+	}
+	if body["store"] != false {
+		t.Fatalf("store = %#v", body["store"])
+	}
+	input, ok := body["input"].([]any)
+	if !ok || len(input) != 1 {
+		t.Fatalf("input = %#v", body["input"])
+	}
+	instructions := strings.ToLower(body["instructions"].(string))
+	for _, want := range []string{"search broadly and deeply", "primary sources", "negative evidence", "references"} {
+		if !strings.Contains(instructions, want) {
+			t.Fatalf("deep instructions missing %q: %s", want, instructions)
+		}
+	}
+}
+
+func TestDeepSearchAllowsOverrides(t *testing.T) {
+	var body map[string]any
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("event: response.output_text.done\n"))
+		_, _ = w.Write([]byte("data: {\"type\":\"response.output_text.done\",\"text\":\"custom ok\"}\n\n"))
+	}))
+	defer ts.Close()
+
+	c := NewClient(ts.URL, "test-key", ts.Client())
+	_, err := c.Search(context.Background(), SearchRequest{
+		Model:             "custom-model",
+		Instructions:      "custom instructions",
+		Input:             "research",
+		Deep:              true,
+		ReasoningEffort:   "medium",
+		SearchContextSize: "low",
+		MaxToolCalls:      3,
+		MaxOutputTokens:   1200,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if body["model"] != "custom-model" || body["instructions"] != "custom instructions" {
+		t.Fatalf("body = %#v", body)
+	}
+	if body["reasoning"].(map[string]any)["effort"] != "medium" {
+		t.Fatalf("reasoning = %#v", body["reasoning"])
+	}
+	tool := body["tools"].([]any)[0].(map[string]any)
+	if tool["search_context_size"] != "low" {
+		t.Fatalf("tool = %#v", tool)
+	}
+	if int(body["max_tool_calls"].(float64)) != 3 || int(body["max_output_tokens"].(float64)) != 1200 {
+		t.Fatalf("limits = %#v %#v", body["max_tool_calls"], body["max_output_tokens"])
+	}
+}
+
 func TestGenerateImageUsesImagesEndpoint(t *testing.T) {
 	var gotAuth string
 	var gotPath string

@@ -7,6 +7,7 @@ Use this reference for installing, updating, authenticating, and troubleshooting
 ```sh
 command -v gptx
 gptx version
+gptx version check
 gptx status
 gptx status --json
 ```
@@ -28,6 +29,26 @@ go install github.com/c-w-xiaohei/gptx/cmd/gptx@v0.2.0
 ```
 
 The binary is usually at `$(go env GOPATH)/bin/gptx`.
+
+## Update
+
+Check whether a newer release is available:
+
+```sh
+gptx version check
+```
+
+Suppress network update checks and use cache/fallback output:
+
+```sh
+GPTX_NO_UPDATE_CHECK=1 gptx version check
+```
+
+Print the supported update command:
+
+```sh
+gptx update
+```
 
 ## PATH And Fish
 

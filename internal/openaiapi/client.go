@@ -23,22 +23,30 @@ import (
 )
 
 const (
-	DefaultBaseURL     = "https://api.openai.com/v1"
-	DefaultSearchModel = "gpt-5.4-mini"
-	DefaultImageModel  = "gpt-image-2"
-	maxImageFileBytes  = 50 * 1024 * 1024
+	DefaultBaseURL         = "https://api.openai.com/v1"
+	DefaultSearchModel     = "gpt-5.4-mini"
+	DefaultDeepSearchModel = "gpt-5.5"
+	DefaultImageModel      = "gpt-image-2"
+	maxImageFileBytes      = 50 * 1024 * 1024
 )
 
 const defaultSearchInstructions = "Search broadly before answering. Every factual result and conclusion must cite sources inline as [number]. End with a References section listing each [number] source URL."
+
+const defaultDeepSearchInstructions = "Search broadly and deeply before answering. Prefer official docs, primary sources, source repositories, standards/specifications, release notes, and direct evidence. Use multiple searches where useful. Check negative evidence, limitations, contradictions, and failure modes. Distinguish facts, inference, uncertainty, and recommendations. Cite factual claims inline as [number]. End with a References section listing URLs."
 
 type Client struct {
 	openai openai.Client
 }
 
 type SearchRequest struct {
-	Model        string `json:"model,omitempty" jsonschema:"OpenAI-compatible model name. Defaults to gpt-5.4-mini."`
-	Instructions string `json:"instructions,omitempty" jsonschema:"Optional system instructions for the Responses API."`
-	Input        string `json:"input" jsonschema:"Search/research request to send to the Responses API with web_search enabled."`
+	Model             string `json:"model,omitempty" jsonschema:"OpenAI-compatible model name. Defaults to gpt-5.4-mini, or gpt-5.5 for deep search."`
+	Instructions      string `json:"instructions,omitempty" jsonschema:"Optional system instructions for the Responses API."`
+	Input             string `json:"input" jsonschema:"Search/research request to send to the Responses API with web_search enabled."`
+	Deep              bool   `json:"deep,omitempty" jsonschema:"Enable high-effort deep search defaults."`
+	ReasoningEffort   string `json:"reasoning_effort,omitempty" jsonschema:"Reasoning effort for deep search: low, medium, high, xhigh."`
+	SearchContextSize string `json:"search_context_size,omitempty" jsonschema:"Web search context size for deep search: low, medium, high."`
+	MaxToolCalls      int    `json:"max_tool_calls,omitempty" jsonschema:"Maximum built-in tool calls for deep search."`
+	MaxOutputTokens   int    `json:"max_output_tokens,omitempty" jsonschema:"Maximum output tokens for deep search."`
 }
 
 type SearchResult struct {
@@ -99,10 +107,18 @@ func (c *Client) Search(ctx context.Context, req SearchRequest) (SearchResult, e
 		return SearchResult{}, errors.New("input is required")
 	}
 	if req.Model == "" {
-		req.Model = DefaultSearchModel
+		if req.Deep {
+			req.Model = DefaultDeepSearchModel
+		} else {
+			req.Model = DefaultSearchModel
+		}
 	}
 	if req.Instructions == "" {
-		req.Instructions = defaultSearchInstructions
+		if req.Deep {
+			req.Instructions = defaultDeepSearchInstructions
+		} else {
+			req.Instructions = defaultSearchInstructions
+		}
 	}
 
 	params := responses.ResponseNewParams{
@@ -119,12 +135,24 @@ func (c *Client) Search(ctx context.Context, req SearchRequest) (SearchResult, e
 				),
 			},
 		},
-		Tools: []responses.ToolUnionParam{
-			responses.ToolParamOfWebSearch(responses.WebSearchToolTypeWebSearch),
-		},
+		Tools: []responses.ToolUnionParam{searchWebSearchTool(req)},
 		ToolChoice: responses.ResponseNewParamsToolChoiceUnion{
 			OfToolChoiceMode: openai.Opt(responses.ToolChoiceOptionsAuto),
 		},
+	}
+	if req.Deep {
+		if req.ReasoningEffort == "" {
+			req.ReasoningEffort = "high"
+		}
+		if req.MaxToolCalls == 0 {
+			req.MaxToolCalls = 8
+		}
+		if req.MaxOutputTokens == 0 {
+			req.MaxOutputTokens = 8000
+		}
+		params.Reasoning = shared.ReasoningParam{Effort: shared.ReasoningEffort(req.ReasoningEffort)}
+		params.MaxToolCalls = openai.Int(int64(req.MaxToolCalls))
+		params.MaxOutputTokens = openai.Int(int64(req.MaxOutputTokens))
 	}
 
 	text, err := c.searchStreaming(ctx, params)
@@ -142,6 +170,17 @@ func (c *Client) Search(ctx context.Context, req SearchRequest) (SearchResult, e
 		return SearchResult{}, errors.New("responses API returned no output_text")
 	}
 	return SearchResult{Text: text}, nil
+}
+
+func searchWebSearchTool(req SearchRequest) responses.ToolUnionParam {
+	tool := responses.WebSearchToolParam{Type: responses.WebSearchToolTypeWebSearch}
+	if req.Deep {
+		if req.SearchContextSize == "" {
+			req.SearchContextSize = "high"
+		}
+		tool.SearchContextSize = responses.WebSearchToolSearchContextSize(req.SearchContextSize)
+	}
+	return responses.ToolUnionParam{OfWebSearch: &tool}
 }
 
 func (c *Client) searchStreaming(ctx context.Context, params responses.ResponseNewParams) (string, error) {

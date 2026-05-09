@@ -16,6 +16,7 @@ type searchOptions struct {
 	InstructionsFile string
 	JSON             bool
 	NoStream         bool
+	BackgroundJob    bool
 }
 
 func newSearchCommand(root *rootOptions) *cobra.Command {
@@ -32,11 +33,15 @@ Defaults:
   - instructions: citation-focused prompt requiring [number] inline citations and a References section.
 
 Notes:
-  - Streaming is enabled by default; --no-stream is accepted for compatibility but currently has no effect.`,
-		Example: `  gptx search "best practices for OpenAI responses prompts"
-  gptx search "golang cobra cli examples" --model gpt-5.4-mini
-  gptx search "summarize this topic" --instructions "Be concise." --json
-  gptx search "incident timeline" --instructions-file ./instructions.txt`,
+	  - Streaming is enabled by default; --no-stream is accepted for compatibility but currently has no effect.
+
+Run guidance:
+  - Prefer --bg for normal agent-driven searches and long research queries so the session can continue while the remote search completes.
+  - Use foreground execution for quick manual lookups when you want the answer printed directly in the terminal.`,
+		Example: `  gptx search "best practices for OpenAI responses prompts" --bg
+  gptx search "golang cobra cli examples" --model gpt-5.4-mini --bg
+  gptx search "summarize this topic" --instructions "Be concise." --json --bg
+  gptx search "incident timeline" --instructions-file ./instructions.txt --json --bg`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			resolvedRoot, err := resolveRootOptions(root, true)
@@ -45,6 +50,17 @@ Notes:
 			}
 			if opts.Instructions != "" && opts.InstructionsFile != "" {
 				return errors.New("--instructions and --instructions-file are mutually exclusive")
+			}
+			if opts.BackgroundJob {
+				if rootAPIKeyFlagChanged(cmd) {
+					return errors.New("--api-key is not supported for background jobs; use GPTX_OPENAI_API_KEY instead")
+				}
+				jobArgs := append([]string{"search", args[0]}, commandFlagArgs(cmd, []string{"bg"})...)
+				out, err := startBackgroundJob(jobArgs, resolvedRoot, "search")
+				if err != nil {
+					return err
+				}
+				return writeJobStartOutput(cmd, isJSONOutput(resolvedRoot.Format, resolvedRoot.JSON, opts.JSON), out)
 			}
 			instructions := opts.Instructions
 			if opts.InstructionsFile != "" {
@@ -88,5 +104,6 @@ Notes:
 	cmd.Flags().StringVar(&opts.InstructionsFile, "instructions-file", "", "load instructions from a file")
 	cmd.Flags().BoolVar(&opts.NoStream, "no-stream", false, "accepted for compatibility; currently no effect")
 	cmd.Flags().BoolVar(&opts.JSON, "json", false, "emit JSON output")
+	cmd.Flags().BoolVar(&opts.BackgroundJob, "bg", false, "run as a local background job and print a job ID")
 	return cmd
 }

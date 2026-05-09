@@ -109,6 +109,7 @@ go run ./cmd/gptx version
 - `gptx search <query>`
 - `gptx image generate <prompt>`
 - `gptx image edit <prompt>`
+- `gptx job <start|list|status|result|logs|cancel|rm>`
 - `gptx version`
 
 Run help:
@@ -118,6 +119,7 @@ gptx --help
 gptx search --help
 gptx image generate --help
 gptx image edit --help
+gptx job --help
 ```
 
 ## Search Behavior
@@ -135,11 +137,13 @@ gptx image edit --help
 Examples:
 
 ```bash
-gptx search "latest updates on OpenAI Responses API"
-gptx search "latest updates on OpenAI Responses API" --model gpt-5.4-mini
-gptx search "summarize this topic" --instructions "Be concise and structured."
-gptx search "incident timeline" --instructions-file ./instructions.txt --json
+gptx search "latest updates on OpenAI Responses API" --bg
+gptx search "latest updates on OpenAI Responses API" --model gpt-5.4-mini --bg
+gptx search "summarize this topic" --instructions "Be concise and structured." --bg
+gptx search "incident timeline" --instructions-file ./instructions.txt --json --bg
 ```
+
+Use `--bg` for normal agent-driven searches and long research queries. The command prints a local job ID; inspect it with `gptx job status <job_id>`, `gptx job result <job_id>`, and `gptx job logs <job_id> --stderr`.
 
 ## Image Generate Behavior
 
@@ -159,6 +163,7 @@ Common output flags and rules:
 - `--overwrite` allows replacing existing files
 - `--create-dirs` creates missing output directories
 - `--dry-run` plans and validates outputs without API calls, uploads, or file writes
+- `--bg` runs a real image command as a local background job and prints a job ID
 
 Default generate filename template:
 
@@ -188,13 +193,42 @@ Output safety and validation:
 Examples:
 
 ```bash
-gptx image generate "minimal logo concept" --out ./logo.png
-gptx image generate "an isometric city" --n 3 --out-dir ./out --create-dirs
-gptx image generate "poster" --size 1536x1024 --quality high --output-format webp --output-compression 80 --json
-gptx image edit "remove background" --image ./in.png --out ./edited.png
-gptx image edit "replace sky" --image ./in.png --mask ./mask.png --n 2 --out-dir ./edits
-gptx image edit "merge style" --image ./a.png --image ./b.png --output-format png --json
+gptx image generate "minimal logo concept" --dry-run --out ./logo.png --json
+gptx image generate "minimal logo concept" --out ./logo.png --bg
+gptx image generate "an isometric city" --dry-run --n 3 --out-dir ./out --create-dirs --json
+gptx image generate "an isometric city" --n 3 --out-dir ./out --create-dirs --bg
+gptx image generate "poster" --size 1536x1024 --quality high --output-format webp --output-compression 80 --json --bg
+gptx image edit "remove background" --dry-run --image ./in.png --out ./edited.png --json
+gptx image edit "remove background" --image ./in.png --out ./edited.png --bg
+gptx image edit "replace sky" --image ./in.png --mask ./mask.png --n 2 --out-dir ./edits --bg
+gptx image edit "merge style" --image ./a.png --image ./b.png --output-format png --json --bg
 ```
+
+Run image commands with `--dry-run --json` first to validate paths. For the real call, remove `--dry-run` and add `--bg` unless foreground output is specifically needed. Do not combine `--dry-run` and `--bg`.
+
+## Background Jobs
+
+`gptx` can run `search`, `image generate`, and `image edit` as local background jobs. This is intended for normal agent-driven research and real image API calls that may outlive the interactive session.
+
+Shortcut examples:
+
+```bash
+gptx search "latest OpenAI image docs" --json --bg
+gptx image generate "poster" --out ./poster.png --json --bg
+gptx image edit "remove background" --image ./in.png --out ./edited.png --json --bg
+```
+
+Explicit job examples:
+
+```bash
+gptx job start -- search "latest OpenAI image docs" --json
+gptx job start -- image generate "poster" --out ./poster.png --json
+gptx job status <job_id>
+gptx job result <job_id>
+gptx job logs <job_id> --stderr
+```
+
+Background jobs use local metadata and log files. Use `GPTX_OPENAI_API_KEY` for credentials; explicit `--api-key` is rejected for background jobs so secrets are not serialized into job metadata.
 
 ## JSON Mode
 

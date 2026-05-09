@@ -25,6 +25,7 @@ type imageOptions struct {
 	CreateDirs        bool
 	DryRun            bool
 	JSON              bool
+	BackgroundJob     bool
 }
 
 type imageEditOptions struct {
@@ -64,15 +65,23 @@ Output naming:
   - Use --out only for n=1
   - Use --out-dir and/or --filename for custom paths
   - Text mode prints one saved path per line
-  - JSON mode returns one object with paths and metadata`,
+  - JSON mode returns one object with paths and metadata
+
+Run guidance:
+  - First use --dry-run --json in the foreground to validate paths without API calls, uploads, or writes.
+  - For real image API calls, prefer --bg so long generation runs can continue as local background jobs.`,
 		Example: `  gptx image generate "an isometric city" --n 3 --out-dir ./out
-  gptx image generate "brand icon" --out ./icon.png
-  gptx image generate "match this design system" --image ./design-system.png --out ./screen.png
-  gptx image generate "poster" --size 1536x1024 --quality high --output-format webp --json`,
+  gptx image generate "brand icon" --dry-run --out ./icon.png --json
+  gptx image generate "brand icon" --out ./icon.png --bg
+  gptx image generate "match this design system" --image ./design-system.png --out ./screen.png --bg
+  gptx image generate "poster" --size 1536x1024 --quality high --output-format webp --json --bg`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.NExplicit = cmd.Flags().Changed("n")
 			opts.CompressionSet = cmd.Flags().Changed("output-compression")
+			if opts.DryRun && opts.BackgroundJob {
+				return errors.New("--dry-run and --bg cannot be used together; run dry-run in the foreground, then remove --dry-run and use --bg for the real call")
+			}
 			opts.imageOptions = opts.imageOptions.imageDefaults()
 			resolvedRoot, err := resolveRootOptions(root, !opts.DryRun)
 			if err != nil {
@@ -113,6 +122,17 @@ Output naming:
 					InputFidelity:     opts.InputFidelity,
 					DryRun:            true,
 				})
+			}
+			if opts.BackgroundJob {
+				if rootAPIKeyFlagChanged(cmd) {
+					return errors.New("--api-key is not supported for background jobs; use GPTX_OPENAI_API_KEY instead")
+				}
+				jobArgs := append([]string{"image", "generate", args[0]}, commandFlagArgs(cmd, []string{"bg"})...)
+				out, err := startBackgroundJob(jobArgs, resolvedRoot, "image.generate")
+				if err != nil {
+					return err
+				}
+				return writeJobStartOutput(cmd, jsonOut, out)
 			}
 
 			client := openaiapi.NewClient(resolvedRoot.BaseURL, resolvedRoot.APIKey, nil)
@@ -194,14 +214,23 @@ Output naming:
   - Default template: gptx-edit-{timestamp}-{index}.{ext}
   - Use --out only for n=1
   - Text mode prints one saved path per line
-  - JSON mode returns one object with paths and metadata`,
+  - JSON mode returns one object with paths and metadata
+
+Run guidance:
+  - First use --dry-run --json in the foreground to validate paths and inputs without API calls, uploads, or writes.
+  - For real image API calls, prefer --bg so long edit runs can continue as local background jobs.`,
 		Example: `  gptx image edit "remove background" --image ./in.png --out ./out.png
-  gptx image edit "replace sky" --image ./in.png --mask ./mask.png --n 2 --out-dir ./edits
-  gptx image edit "merge style" --image ./a.png --image ./b.png --output-format png --json`,
+  gptx image edit "remove background" --dry-run --image ./in.png --out ./out.png --json
+  gptx image edit "remove background" --image ./in.png --out ./out.png --bg
+  gptx image edit "replace sky" --image ./in.png --mask ./mask.png --n 2 --out-dir ./edits --bg
+  gptx image edit "merge style" --image ./a.png --image ./b.png --output-format png --json --bg`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.NExplicit = cmd.Flags().Changed("n")
 			opts.CompressionSet = cmd.Flags().Changed("output-compression")
+			if opts.DryRun && opts.BackgroundJob {
+				return errors.New("--dry-run and --bg cannot be used together; run dry-run in the foreground, then remove --dry-run and use --bg for the real call")
+			}
 			opts.imageOptions = opts.imageOptions.imageDefaults()
 			resolvedRoot, err := resolveRootOptions(root, !opts.DryRun)
 			if err != nil {
@@ -244,6 +273,17 @@ Output naming:
 					InputFidelity:     opts.InputFidelity,
 					DryRun:            true,
 				})
+			}
+			if opts.BackgroundJob {
+				if rootAPIKeyFlagChanged(cmd) {
+					return errors.New("--api-key is not supported for background jobs; use GPTX_OPENAI_API_KEY instead")
+				}
+				jobArgs := append([]string{"image", "edit", args[0]}, commandFlagArgs(cmd, []string{"bg"})...)
+				out, err := startBackgroundJob(jobArgs, resolvedRoot, "image.edit")
+				if err != nil {
+					return err
+				}
+				return writeJobStartOutput(cmd, jsonOut, out)
 			}
 
 			client := openaiapi.NewClient(resolvedRoot.BaseURL, resolvedRoot.APIKey, nil)
@@ -315,6 +355,7 @@ func bindImageFlags(cmd *cobra.Command, opts *imageOptions) {
 	cmd.Flags().BoolVar(&opts.CreateDirs, "create-dirs", false, "create output directories if missing")
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "compute output paths without writing files")
 	cmd.Flags().BoolVar(&opts.JSON, "json", false, "emit JSON output")
+	cmd.Flags().BoolVar(&opts.BackgroundJob, "bg", false, "run as a local background job and print a job ID")
 }
 
 func (o imageOptions) imageDefaults() imageOptions {

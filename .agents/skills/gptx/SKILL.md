@@ -22,34 +22,33 @@ gptx version
 gptx status
 ```
 
-Use JSON when another tool or agent will parse the result:
+Use JSON when another tool or agent will parse the result. For normal searches and real image API calls, prefer local background jobs with `--bg` so the session can continue while the remote call completes:
 
 ```sh
 gptx status --json
-gptx search "current GoReleaser GitHub Action recommendations" --json
+gptx search "current GoReleaser GitHub Action recommendations" --json --bg
 gptx image generate "test" --dry-run --n 2 --out-dir /tmp --json
+gptx image generate "test" --n 2 --out-dir /tmp --json --bg
 gptx image generate "match this design system" --image ./design-system.png --dry-run --out /tmp/ref.png --json
+gptx image generate "match this design system" --image ./design-system.png --out /tmp/ref.png --json --bg
 gptx image edit "remove only the background; keep the product unchanged" --image ./product.png --dry-run --out /tmp/product-cutout.png --json
+gptx image edit "remove only the background; keep the product unchanged" --image ./product.png --out /tmp/product-cutout.png --json --bg
 ```
 
-For image generation or editing, use `--dry-run --json` first to validate planned output paths before paid API calls. Do not print raw image base64 or ask the user to paste API keys into chat.
+For image generation or editing, use `--dry-run --json` first to validate planned output paths before paid API calls. For the real call, remove `--dry-run` and add `--bg` unless the user explicitly needs foreground output. Do not combine `--dry-run` and `--bg`. Do not print raw image base64 or ask the user to paste API keys into chat.
 
-For long searches or large image jobs, use a background shell task with log files so the session can continue:
+For background jobs, use `GPTX_OPENAI_API_KEY` from the environment. Do not pass explicit `--api-key`; background jobs reject it so secrets are not serialized in job metadata.
+
+Inspect background jobs with the built-in job commands:
 
 ```sh
-mkdir -p /tmp/gptx-jobs
-nohup gptx search "compare Go release automation options" --json \
-  > /tmp/gptx-jobs/release-search.json \
-  2> /tmp/gptx-jobs/release-search.err &
+gptx job status <job_id>
+gptx job result <job_id>
+gptx job logs <job_id>
+gptx job logs <job_id> --stderr
 ```
 
-Poll the files later:
-
-```sh
-ls -l /tmp/gptx-jobs
-```
-
-These examples have been verified in this project: `gptx version`, `gptx status`, `gptx status --json`, `gptx search ... --json`, and image `--dry-run` planning.
+These examples have been verified in this project: `gptx version`, `gptx status`, `gptx status --json`, `gptx search ... --json --bg`, and image `--dry-run` planning followed by real `--bg` runs.
 
 ## Additional Resources
 

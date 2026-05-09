@@ -31,29 +31,29 @@ Stop only when additional searches are unlikely to change the conclusion, or whe
 For independent subquestions, run searches in parallel when the agent environment supports parallel tool calls. Examples:
 
 ```sh
-gptx search "best GitHub Actions for GoReleaser Go CLI releases" --json
-gptx search "Go install module from GitHub latest tag workflow" --json
-gptx search "OpenAI Responses API web_search citations examples" --json
+gptx search "best GitHub Actions for GoReleaser Go CLI releases" --json --bg
+gptx search "Go install module from GitHub latest tag workflow" --json --bg
+gptx search "OpenAI Responses API web_search citations examples" --json --bg
 ```
 
 Follow-up query patterns:
 
-- Broad landscape: `gptx search "compare current options for <topic>" --json`
-- Official docs: `gptx search "official documentation <tool> <feature>" --json`
-- Failure mode: `gptx search "<error message> root cause fix" --json`
-- Alternatives: `gptx search "<tool A> vs <tool B> tradeoffs" --json`
-- Recent state: `gptx search "<topic> current status 2026" --json`
+- Broad landscape: `gptx search "compare current options for <topic>" --json --bg`
+- Official docs: `gptx search "official documentation <tool> <feature>" --json --bg`
+- Failure mode: `gptx search "<error message> root cause fix" --json --bg`
+- Alternatives: `gptx search "<tool A> vs <tool B> tradeoffs" --json --bg`
+- Recent state: `gptx search "<topic> current status 2026" --json --bg`
 
 ## Command Examples
 
 ```sh
-gptx search "current GoReleaser GitHub Action best practices"
-gptx search "OpenAI Responses web_search examples" --json
-gptx search "OpenAI Responses web_search examples" --model gpt-5.4-mini --json
-gptx search "incident timeline" --instructions-file ./instructions.txt --json
+gptx search "current GoReleaser GitHub Action best practices" --bg
+gptx search "OpenAI Responses web_search examples" --json --bg
+gptx search "OpenAI Responses web_search examples" --model gpt-5.4-mini --json --bg
+gptx search "incident timeline" --instructions-file ./instructions.txt --json --bg
 ```
 
-Use `--json` or `--format json` when another tool or agent needs to parse results.
+Use `--json` or `--format json` when another tool or agent needs to parse results. Use `--bg` for normal agent-driven searches so the session can continue while the remote call completes.
 
 ## Behavior
 
@@ -67,19 +67,18 @@ Use `--json` or `--format json` when another tool or agent needs to parse result
 
 ## Long-Running Search
 
-For long searches, use a background process and inspect output files later:
+For normal agent-driven searches and long research queries, use `--bg` so the session can continue while the remote Responses API call completes:
 
 ```sh
-mkdir -p /tmp/gptx-jobs
-nohup gptx search "compare Go release automation options" --json \
-  > /tmp/gptx-jobs/release-search.json \
-  2> /tmp/gptx-jobs/release-search.err &
+gptx search "compare Go release automation options" --json --bg
 ```
 
-Then inspect:
+Then inspect the returned job ID:
 
 ```sh
-ls -l /tmp/gptx-jobs
+gptx job status <job_id>
+gptx job result <job_id>
+gptx job logs <job_id> --stderr
 ```
 
-Prefer foreground execution with a longer command timeout when the agent tool supports explicit timeouts and output capture.
+Keep foreground execution for quick manual lookups when direct terminal output is more useful than a background job.

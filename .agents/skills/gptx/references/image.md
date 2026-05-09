@@ -11,6 +11,7 @@ This workflow adapts the strongest parts of OpenAI-style imagegen skills to `gpt
 - Use `gptx image edit --image` when the user asks to modify an existing image while preserving parts of it.
 - Use `gptx image edit --mask` for explicit masked edits or inpainting workflows.
 - Run `--dry-run --json` before a real image call unless the user only asked for command help.
+- After a successful dry run, use `--bg` for normal or long real image generation/editing runs so the session can continue while the remote image API call completes.
 - Do not overwrite files unless the user explicitly asks for replacement; otherwise choose a versioned filename.
 - Do not ask the user to paste API keys in chat. Ask them to configure `GPTX_OPENAI_API_KEY` locally.
 - Do not print raw base64. `gptx` saves decoded images and prints paths or JSON metadata.
@@ -61,10 +62,15 @@ Keep prompt augmentation restrained. If the user's prompt is already specific, n
 
 ```sh
 gptx image generate "minimal logo concept" --dry-run --out ./logo.png --json
+gptx image generate "minimal logo concept" --out ./logo.png --json --bg
 gptx image generate "create an empty state illustration matching this design system" --dry-run --image ./design-system.png --out ./empty-state.png --json
+gptx image generate "create an empty state illustration matching this design system" --image ./design-system.png --out ./empty-state.png --json --bg
 gptx image generate "make a product hero image in this visual style" --dry-run --image ./brand.png --image ./components.png --out ./hero.png --json
+gptx image generate "make a product hero image in this visual style" --image ./brand.png --image ./components.png --out ./hero.png --json --bg
 gptx image generate "an isometric city" --dry-run --n 3 --out-dir ./out --create-dirs --json
+gptx image generate "an isometric city" --n 3 --out-dir ./out --create-dirs --json --bg
 gptx image generate "poster" --dry-run --size 1536x1024 --quality high --output-format webp --output-compression 80 --json
+gptx image generate "poster" --size 1536x1024 --quality high --output-format webp --output-compression 80 --json --bg
 ```
 
 Generation behavior:
@@ -89,9 +95,13 @@ Reference-image generation rules:
 
 ```sh
 gptx image edit "remove background" --dry-run --image ./in.png --out ./out.png --json
+gptx image edit "remove background" --image ./in.png --out ./out.png --json --bg
 gptx image edit "replace sky" --dry-run --image ./in.png --mask ./mask.png --n 2 --out-dir ./edits --json
+gptx image edit "replace sky" --image ./in.png --mask ./mask.png --n 2 --out-dir ./edits --json --bg
 gptx image edit "merge style" --dry-run --image ./a.png --image ./b.png --output-format png --json
+gptx image edit "merge style" --image ./a.png --image ./b.png --output-format png --json --bg
 gptx image edit "preserve product, remove background" --dry-run --image ./product.png --input-fidelity high --background transparent --output-format png --out ./cutout.png --json
+gptx image edit "preserve product, remove background" --image ./product.png --input-fidelity high --background transparent --output-format png --out ./cutout.png --json --bg
 ```
 
 Edit behavior:
@@ -136,8 +146,10 @@ Dry-run to real-run sequence:
 
 1. Run the same command with `--dry-run --json`.
 2. Read the planned `paths` and confirm they are safe.
-3. Remove only `--dry-run` for the real call. Keep `--json` when another tool or agent will parse the result.
-4. If the real command fails because an output file exists, choose a new versioned path unless the user explicitly asked for `--overwrite`.
+3. Remove `--dry-run` for the real call. Keep `--json` when another tool or agent will parse the result.
+4. Add `--bg` for normal or long real image API runs. Do not combine `--dry-run` and `--bg`.
+5. Inspect the returned job ID with `gptx job status`, `gptx job result`, and `gptx job logs --stderr`.
+6. If the real command fails because an output file exists, choose a new versioned path unless the user explicitly asked for `--overwrite`.
 
 Output flags:
 
@@ -154,6 +166,7 @@ Output flags:
 - `--overwrite` allows replacing existing files.
 - `--create-dirs` creates missing output directories.
 - `--dry-run` computes planned paths without requiring an API key, calling a remote API, uploading images, or writing files.
+- `--bg` runs the real command as a local background job and prints a job ID. It is separate from `--background`, which controls image background mode.
 
 Input validation:
 

@@ -2,7 +2,7 @@
 
 Use these copy-ready prompt recipes as starting points for `gptx image generate` and `gptx image edit`. Adapt them to the user's request. Do not add every detail to every prompt.
 
-All command examples use `--dry-run --json` first. For the real call, remove only `--dry-run` after checking planned paths.
+All command examples use `--dry-run --json` first. For the real call, remove `--dry-run` after checking planned paths, and add `--bg` for normal or long image API runs so the session can continue while the job completes. Do not combine `--dry-run` and `--bg`.
 
 ## Generation Recipes
 

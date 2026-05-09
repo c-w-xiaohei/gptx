@@ -40,6 +40,7 @@ Core features:
   - Search the web and return cited answers.
   - Generate images from prompts and save them locally.
   - Edit images with one or more input files and an optional mask.
+  - Run search and image commands as local background jobs with job IDs.
   - Check local authentication and endpoint configuration with gptx status.
 
 Authentication and config:
@@ -55,6 +56,11 @@ Image output behavior:
   - Text mode prints saved paths one per line.
   - JSON mode emits one object with paths and metadata.
   - Raw base64 is never printed by default.
+
+Background jobs:
+  - For normal agent-driven search and real image API calls, prefer --bg so long remote calls can continue outside the interactive session.
+  - Use gptx job status/result/logs with the returned job ID to inspect progress, outputs, and diagnostics.
+  - Use foreground execution for help, status, version, and image --dry-run planning commands.
 
 Implementation notes:
   - Search uses POST /responses with web_search, model default gpt-5.4-mini, store=false, and list-style input items.
@@ -72,20 +78,25 @@ Implementation notes:
 
 	cmd.AddCommand(newSearchCommand(&root))
 	cmd.AddCommand(newImageCommand(&root))
+	cmd.AddCommand(newJobCommand(&root))
+	cmd.AddCommand(newRunJobCommand(&root))
 	cmd.AddCommand(newStatusCommand(&root))
 	cmd.AddCommand(newVersionCommand())
 
-	cmd.Example = `  gptx search "latest OpenAI Responses API updates" --model gpt-5.4-mini
-  gptx search "openai responses web_search examples" --json
-  gptx image generate "a calm coastal illustration" --n 2 --out-dir ./images
-  gptx image generate "logo concept" --out ./logo.png
-  gptx image edit "remove the background" --image ./in.png --mask ./mask.png --out ./edited.png
-  gptx image edit "make it photorealistic" --image ./a.png --image ./b.png --n 2 --output-format webp
+	cmd.Example = `  gptx search "latest OpenAI Responses API updates" --model gpt-5.4-mini --bg
+  gptx search "openai responses web_search examples" --json --bg
+  gptx image generate "a calm coastal illustration" --n 2 --out-dir ./images --bg
+  gptx image generate "logo concept" --dry-run --out ./logo.png --json
+  gptx image generate "logo concept" --out ./logo.png --bg
+  gptx image edit "remove the background" --dry-run --image ./in.png --mask ./mask.png --out ./edited.png --json
+  gptx image edit "remove the background" --image ./in.png --mask ./mask.png --out ./edited.png --bg
+  gptx job status <job_id>
+  gptx job result <job_id>
 
 Config examples:
   export GPTX_OPENAI_API_KEY=***
   export GPTX_OPENAI_BASE_URL=https://api.openai.com/v1
-  gptx search "what changed this week"`
+  gptx search "what changed this week" --bg`
 
 	return cmd
 }

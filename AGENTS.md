@@ -8,6 +8,7 @@ Supported commands:
 - `gptx search`: Responses API with hosted `web_search`.
 - `gptx image generate`: `/images/generations`, saving returned images.
 - `gptx image edit`: `/images/edits` multipart uploads, saving returned images.
+- `gptx job`: local background jobs for search and real image API calls.
 - `gptx version`: prints the CLI version string.
 
 This repo is CLI-only. Do not add server mode, MCP transport, MCP runtime targets, or user-facing MCP configuration.
@@ -27,6 +28,7 @@ Never commit API keys. Never put secrets in docs, examples, logs, tests, screens
 - `internal/cli/search.go`: `gptx search` command.
 - `internal/cli/image.go`: `gptx image generate` and `gptx image edit` flows.
 - `internal/cli/image_output.go`: output-format validation, path planning, image writes, result output.
+- `internal/cli/jobs.go`: local background job commands, metadata, worker re-exec, logs, and result handling.
 - `internal/openaiapi/client.go`: OpenAI-compatible API client using `openai-go/v3`.
 - `internal/*/*_test.go`: unit tests for CLI behavior and API request construction.
 
@@ -45,6 +47,7 @@ go run ./cmd/gptx --help
 go run ./cmd/gptx search --help
 go run ./cmd/gptx image generate --help
 go run ./cmd/gptx image edit --help
+go run ./cmd/gptx job --help
 ```
 
 Run dry-run image commands without an API key:
@@ -55,7 +58,7 @@ go run ./cmd/gptx --format json image edit "remove background" --dry-run --out /
 
 Run a real API command only when `GPTX_OPENAI_API_KEY` is intentionally set:
 ```bash
-GPTX_OPENAI_API_KEY=... go run ./cmd/gptx search "OpenAI Responses API web_search docs"
+GPTX_OPENAI_API_KEY=... go run ./cmd/gptx search "OpenAI Responses API web_search docs" --bg
 ```
 
 ## Test Commands
@@ -144,9 +147,13 @@ Help text is product surface. Agents learn this CLI from `--help`.
 - Text mode search prints the answer to stdout.
 - Text mode image commands print saved paths to stdout, one per line.
 - JSON mode emits one JSON object to stdout on success.
+- For normal agent-driven search and real image API calls, prefer `--bg` so long remote calls can continue as local background jobs.
+- `gptx job status/result/logs` inspect local background jobs by job ID.
 - Errors and diagnostics go to stderr and must return non-zero.
 - Missing API key must be visible and actionable.
 - `--dry-run` must not require an API key, call a remote API, upload images, or write files.
+- `--dry-run` and `--bg` must not be combined.
+- Background jobs must reject explicit `--api-key`; use `GPTX_OPENAI_API_KEY` so secrets are not serialized in job metadata.
 
 ## File Output Rules
 

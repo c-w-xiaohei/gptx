@@ -201,7 +201,9 @@ func searchResponseParams(req SearchRequest) responses.ResponseNewParams {
 func (c *Client) searchText(ctx context.Context, params responses.ResponseNewParams) (string, error) {
 	text, err := c.searchStreaming(ctx, params)
 	if err != nil {
-		return "", err
+		if !isUnexpectedJSONEOF(err) {
+			return "", err
+		}
 	}
 	if text == "" {
 		resp, err := c.openai.Responses.New(ctx, params)

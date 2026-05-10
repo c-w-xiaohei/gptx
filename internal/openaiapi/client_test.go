@@ -261,6 +261,47 @@ func TestSearchReturnsDoneTextWhenStreamEndsWithoutDoneSentinel(t *testing.T) {
 	}
 }
 
+func TestSearchFallsBackWhenStreamStartsWithHeartbeat(t *testing.T) {
+	requests := 0
+	var bodies []map[string]any
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		bodies = append(bodies, body)
+		if requests == 1 {
+			w.Header().Set("Content-Type", "text/event-stream")
+			_, _ = w.Write([]byte(": keepalive\n\n"))
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"output":[{"type":"message","content":[{"type":"output_text","text":"fallback text"}]}]}`))
+	}))
+	defer ts.Close()
+
+	c := NewClient(ts.URL, "test-key", ts.Client())
+	res, err := c.Search(context.Background(), SearchRequest{Input: "query"})
+	if err != nil {
+		t.Fatalf("search should fall back after empty stream heartbeat: %v", err)
+	}
+	if requests != 2 {
+		t.Fatalf("requests = %d, want 2", requests)
+	}
+	if bodies[0]["stream"] != true {
+		t.Fatalf("first stream = %#v, want true", bodies[0]["stream"])
+	}
+	if _, ok := bodies[1]["stream"]; ok {
+		t.Fatalf("fallback request should not set stream, got %#v", bodies[1]["stream"])
+	}
+	if res.Text != "fallback text" {
+		t.Fatalf("text = %q", res.Text)
+	}
+}
+
 func TestSearchStreamResultUsesTextOnUnexpectedJSONEOF(t *testing.T) {
 	text, err := searchStreamResult("delta text", "done text", errors.New("unexpected end of JSON input"))
 	if err != nil {

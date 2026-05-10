@@ -10,10 +10,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -430,9 +428,7 @@ func spawnJobWorker(jobID, stdoutPath, stderrPath string, root rootOptions) (int
 	child.Stdin = nil
 	child.Stdout = stdout
 	child.Stderr = stderr
-	if runtime.GOOS != "windows" {
-		child.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	}
+	configureJobWorkerProcess(child)
 	if err := child.Start(); err != nil {
 		return 0, fmt.Errorf("start job worker: %w", err)
 	}
@@ -527,20 +523,7 @@ func applyWorkerRootOptions(cmd *cobra.Command, root rootOptions) {
 }
 
 func signalJobCancel(pid int) error {
-	if runtime.GOOS == "windows" {
-		proc, err := os.FindProcess(pid)
-		if err != nil {
-			return fmt.Errorf("find job process: %w", err)
-		}
-		if err := proc.Kill(); err != nil {
-			return fmt.Errorf("kill job process: %w", err)
-		}
-		return nil
-	}
-	if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil {
-		return fmt.Errorf("signal job process: %w", err)
-	}
-	return nil
+	return signalJobProcess(pid)
 }
 
 func finishJob(jobID, state string, exitCode int, message string) {

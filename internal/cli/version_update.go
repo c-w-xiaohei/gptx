@@ -128,16 +128,19 @@ func updateFallbackCommands(goos, goarch string) []string {
 	if goarch != "amd64" && goarch != "arm64" {
 		return nil
 	}
-	archiveName := fmt.Sprintf("gptx_%s_%s.tar.gz", goos, goarch)
-	archiveURL := "https://github.com/c-w-xiaohei/gptx/releases/latest/download/" + archiveName
-	checksumsURL := "https://github.com/c-w-xiaohei/gptx/releases/latest/download/checksums.txt"
 	return []string{
 		`set -e`,
 		`tmp="$(mktemp -d)"`,
-		fmt.Sprintf(`archive="$tmp/%s"`, archiveName),
+		`latest_url=$(curl -fsSL -o /dev/null -w '%{url_effective}' https://github.com/c-w-xiaohei/gptx/releases/latest)`,
+		`tag="${latest_url##*/}"`,
+		`assets_url="https://github.com/c-w-xiaohei/gptx/releases/expanded_assets/${tag}"`,
+		fmt.Sprintf(`asset_path=$(curl -fsSL "$assets_url" | grep -oE '/c-w-xiaohei/gptx/releases/download/[^"<> ]+gptx_[^"<> ]+_%s_%s\.tar\.gz' | head -n 1)`, goos, goarch),
+		`checksums_path=$(curl -fsSL "$assets_url" | grep -oE '/c-w-xiaohei/gptx/releases/download/[^"<> ]+checksums\.txt' | head -n 1)`,
+		`archive_name="${asset_path##*/}"`,
+		`archive="$tmp/$archive_name"`,
 		`checksums="$tmp/checksums.txt"`,
-		fmt.Sprintf(`curl -fL --retry 3 -o "$archive" "%s"`, archiveURL),
-		fmt.Sprintf(`curl -fL --retry 3 -o "$checksums" "%s"`, checksumsURL),
+		`curl -fL --retry 3 -o "$archive" "https://github.com${asset_path}"`,
+		`curl -fL --retry 3 -o "$checksums" "https://github.com${checksums_path}"`,
 		`(cd "$tmp" && sha256sum -c --ignore-missing checksums.txt)`,
 		`tar -xzf "$archive" -C "$tmp"`,
 		`mkdir -p "$HOME/.local/bin"`,

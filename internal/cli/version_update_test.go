@@ -248,7 +248,9 @@ func TestUpdateCommandTextIncludesFallbackGitHubArchiveCommands(t *testing.T) {
 	for _, want := range []string{
 		installHint,
 		"Fallback GitHub release archive install:",
-		"https://github.com/c-w-xiaohei/gptx/releases/latest/download/gptx_",
+		"latest_url=$(curl -fsSL -o /dev/null -w '%{url_effective}'",
+		"assets_url=\"https://github.com/c-w-xiaohei/gptx/releases/expanded_assets/${tag}\"",
+		"grep -oE '/c-w-xiaohei/gptx/releases/download/[^\"<> ]+gptx_[^\"<> ]+_linux_amd64\\.tar\\.gz'",
 		"curl -fL --retry 3 -o \"$archive\"",
 		"curl -fL --retry 3 -o \"$checksums\"",
 		"sha256sum -c --ignore-missing checksums.txt",
@@ -318,16 +320,22 @@ func TestUpdateCommandJSONIncludesFallbackCommands(t *testing.T) {
 
 func TestUpdateFallbackCommandsForLinuxAMD64(t *testing.T) {
 	commands := updateFallbackCommands("linux", "amd64")
-	if len(commands) != 10 {
-		t.Fatalf("expected 10 commands, got %d: %#v", len(commands), commands)
+	if len(commands) != 16 {
+		t.Fatalf("expected 16 commands, got %d: %#v", len(commands), commands)
 	}
 	for _, want := range []string{
 		`set -e`,
 		`tmp="$(mktemp -d)"`,
-		`archive="$tmp/gptx_linux_amd64.tar.gz"`,
+		`latest_url=$(curl -fsSL -o /dev/null -w '%{url_effective}' https://github.com/c-w-xiaohei/gptx/releases/latest)`,
+		`tag="${latest_url##*/}"`,
+		`assets_url="https://github.com/c-w-xiaohei/gptx/releases/expanded_assets/${tag}"`,
+		`asset_path=$(curl -fsSL "$assets_url" | grep -oE '/c-w-xiaohei/gptx/releases/download/[^"<> ]+gptx_[^"<> ]+_linux_amd64\.tar\.gz' | head -n 1)`,
+		`checksums_path=$(curl -fsSL "$assets_url" | grep -oE '/c-w-xiaohei/gptx/releases/download/[^"<> ]+checksums\.txt' | head -n 1)`,
+		`archive_name="${asset_path##*/}"`,
+		`archive="$tmp/$archive_name"`,
 		`checksums="$tmp/checksums.txt"`,
-		`curl -fL --retry 3 -o "$archive" "https://github.com/c-w-xiaohei/gptx/releases/latest/download/gptx_linux_amd64.tar.gz"`,
-		`curl -fL --retry 3 -o "$checksums" "https://github.com/c-w-xiaohei/gptx/releases/latest/download/checksums.txt"`,
+		`curl -fL --retry 3 -o "$archive" "https://github.com${asset_path}"`,
+		`curl -fL --retry 3 -o "$checksums" "https://github.com${checksums_path}"`,
 		`(cd "$tmp" && sha256sum -c --ignore-missing checksums.txt)`,
 		`tar -xzf "$archive" -C "$tmp"`,
 		`mkdir -p "$HOME/.local/bin"`,

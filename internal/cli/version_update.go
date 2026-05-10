@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -19,6 +20,8 @@ var (
 	githubLatestReleaseURL  = "https://api.github.com/repos/c-w-xiaohei/gptx/releases/latest"
 	updateCheckUserCacheDir = os.UserCacheDir
 	updateCheckNow          = time.Now
+	updateRuntimeGOOS       = runtime.GOOS
+	updateRuntimeGOARCH     = runtime.GOARCH
 )
 
 type updateCheckCache struct {
@@ -41,8 +44,9 @@ type updateCheckOutput struct {
 }
 
 type updateOutput struct {
-	InstallHint string `json:"install_hint"`
-	Message     string `json:"message"`
+	InstallHint      string   `json:"install_hint"`
+	FallbackCommands []string `json:"fallback_commands,omitempty"`
+	Message          string   `json:"message"`
 }
 
 type githubRelease struct {
@@ -87,22 +91,53 @@ func newUpdateCommand(root *rootOptions) *cobra.Command {
 This command does not require GPTX_OPENAI_API_KEY and does not perform a network request. Set GPTX_NO_UPDATE_CHECK=1 to suppress network update checks where applicable.
 
 Supported install/update command:
-  ` + installHint,
+  ` + installHint + `
+
+On linux amd64/arm64, this command also prints a GitHub release archive fallback using the local GOOS/GOARCH.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			format, err := normalizeRootFormat(root.Format)
 			if err != nil {
 				return err
 			}
+			fallbackCommands := updateFallbackCommands(updateRuntimeGOOS, updateRuntimeGOARCH)
 			out := updateOutput{
-				InstallHint: installHint,
-				Message:     "run this command to install or update gptx",
+				InstallHint:      installHint,
+				FallbackCommands: fallbackCommands,
+				Message:          "run this command to install or update gptx",
 			}
 			if isJSONOutput(format, root.JSON, false) {
 				return writeJSON(cmd, out)
 			}
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Run this command to install or update gptx:\n  %s\n", installHint)
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Run this command to install or update gptx:\n  %s\n", installHint); err != nil {
+				return err
+			}
+			if len(fallbackCommands) == 0 {
+				_, err = fmt.Fprintln(cmd.OutOrStdout(), "\nNo generic GitHub release archive fallback is available for this platform.")
+				return err
+			}
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "\nFallback GitHub release archive install:\n  %s\n", strings.Join(fallbackCommands, "\n  "))
 			return err
 		},
+	}
+}
+
+func updateFallbackCommands(goos, goarch string) []string {
+	if goos != "linux" {
+		return nil
+	}
+	if goarch != "amd64" && goarch != "arm64" {
+		return nil
+	}
+	pattern := fmt.Sprintf("gptx_*_%s_%s.tar.gz", goos, goarch)
+	return []string{
+		`set -e`,
+		`tmp="$(mktemp -d)"`,
+		fmt.Sprintf(`gh release download --repo c-w-xiaohei/gptx --pattern '%s' --dir "$tmp" --clobber`, pattern),
+		`gh release download --repo c-w-xiaohei/gptx --pattern checksums.txt --dir "$tmp" --clobber`,
+		`(cd "$tmp" && sha256sum -c --ignore-missing checksums.txt)`,
+		`tar -xzf "$tmp"/gptx_*.tar.gz -C "$tmp"`,
+		`mkdir -p "$HOME/.local/bin"`,
+		`install -m 0755 "$tmp/gptx" "$HOME/.local/bin/gptx"`,
 	}
 }
 

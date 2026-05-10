@@ -50,6 +50,8 @@ Print the supported update command:
 gptx update
 ```
 
+On Linux amd64/arm64, `gptx update` also prints a fallback block that downloads the latest GitHub release archive with `gh release download`, verifies `checksums.txt`, and installs the binary to `$HOME/.local/bin/gptx`. The command only prints this fallback; it does not execute `gh`, `go`, or any network request by itself.
+
 ## PATH And Fish
 
 ```fish
@@ -84,6 +86,13 @@ gh release download v0.2.0 \
   --repo c-w-xiaohei/gptx \
   --pattern 'gptx_0.2.0_linux_amd64.tar.gz' \
   --dir /tmp/gptx-install
+
+gh release download v0.2.0 \
+  --repo c-w-xiaohei/gptx \
+  --pattern checksums.txt \
+  --dir /tmp/gptx-install
+
+(cd /tmp/gptx-install && sha256sum -c --ignore-missing checksums.txt)
 
 tar -xzf /tmp/gptx-install/gptx_0.2.0_linux_amd64.tar.gz -C /tmp/gptx-install
 install -m 755 /tmp/gptx-install/gptx "$HOME/.local/bin/gptx"

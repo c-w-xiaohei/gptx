@@ -9,6 +9,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/packages/param"
 	"github.com/openai/openai-go/v3/responses"
 	"github.com/openai/openai-go/v3/shared"
 	_ "golang.org/x/image/webp"
@@ -50,7 +52,14 @@ type SearchRequest struct {
 }
 
 type SearchResult struct {
-	Text string `json:"text"`
+	Text                        string `json:"text"`
+	Model                       string `json:"model,omitempty"`
+	ReasoningEffort             string `json:"reasoning_effort,omitempty"`
+	SearchContextSize           string `json:"search_context_size,omitempty"`
+	MaxToolCalls                int    `json:"max_tool_calls,omitempty"`
+	MaxOutputTokens             int    `json:"max_output_tokens,omitempty"`
+	CompatibilityFallback       bool   `json:"compatibility_fallback,omitempty"`
+	CompatibilityFallbackReason string `json:"compatibility_fallback_reason,omitempty"`
 }
 
 type ImageRequest struct {
@@ -120,7 +129,48 @@ func (c *Client) Search(ctx context.Context, req SearchRequest) (SearchResult, e
 			req.Instructions = defaultSearchInstructions
 		}
 	}
+	if req.Deep {
+		if req.ReasoningEffort == "" {
+			req.ReasoningEffort = "high"
+		}
+		if req.SearchContextSize == "" {
+			req.SearchContextSize = "high"
+		}
+		if req.MaxToolCalls == 0 {
+			req.MaxToolCalls = 8
+		}
+		if req.MaxOutputTokens == 0 {
+			req.MaxOutputTokens = 8000
+		}
+	}
 
+	params := searchResponseParams(req)
+	result := SearchResult{
+		Model:             req.Model,
+		ReasoningEffort:   req.ReasoningEffort,
+		SearchContextSize: req.SearchContextSize,
+		MaxToolCalls:      req.MaxToolCalls,
+		MaxOutputTokens:   req.MaxOutputTokens,
+	}
+	text, err := c.searchText(ctx, params)
+	if err != nil && req.Deep && isUnsupportedMaxToolCallsError(err) {
+		result.CompatibilityFallback = true
+		result.CompatibilityFallbackReason = compatibilityFallbackReason(err)
+		result.MaxToolCalls = 0
+		params.MaxToolCalls = param.Opt[int64]{}
+		text, err = c.searchText(ctx, params)
+	}
+	if err != nil {
+		return SearchResult{}, err
+	}
+	if text == "" {
+		return SearchResult{}, errors.New("responses API returned no output_text")
+	}
+	result.Text = text
+	return result, nil
+}
+
+func searchResponseParams(req SearchRequest) responses.ResponseNewParams {
 	params := responses.ResponseNewParams{
 		Model:        shared.ResponsesModel(req.Model),
 		Instructions: openai.String(req.Instructions),
@@ -141,43 +191,51 @@ func (c *Client) Search(ctx context.Context, req SearchRequest) (SearchResult, e
 		},
 	}
 	if req.Deep {
-		if req.ReasoningEffort == "" {
-			req.ReasoningEffort = "high"
-		}
-		if req.MaxToolCalls == 0 {
-			req.MaxToolCalls = 8
-		}
-		if req.MaxOutputTokens == 0 {
-			req.MaxOutputTokens = 8000
-		}
 		params.Reasoning = shared.ReasoningParam{Effort: shared.ReasoningEffort(req.ReasoningEffort)}
 		params.MaxToolCalls = openai.Int(int64(req.MaxToolCalls))
 		params.MaxOutputTokens = openai.Int(int64(req.MaxOutputTokens))
 	}
+	return params
+}
 
+func (c *Client) searchText(ctx context.Context, params responses.ResponseNewParams) (string, error) {
 	text, err := c.searchStreaming(ctx, params)
 	if err != nil {
-		return SearchResult{}, err
+		return "", err
 	}
 	if text == "" {
 		resp, err := c.openai.Responses.New(ctx, params)
 		if err != nil {
-			return SearchResult{}, err
+			return "", err
 		}
 		text = resp.OutputText()
 	}
-	if text == "" {
-		return SearchResult{}, errors.New("responses API returned no output_text")
+	return text, nil
+}
+
+func isUnsupportedMaxToolCallsError(err error) bool {
+	var apiErr *openai.Error
+	if !errors.As(err, &apiErr) {
+		return false
 	}
-	return SearchResult{Text: text}, nil
+	if apiErr.StatusCode != http.StatusBadRequest {
+		return false
+	}
+	message := strings.ToLower(apiErr.Message)
+	return strings.Contains(message, "unsupported parameter") && strings.Contains(message, "max_tool_calls")
+}
+
+func compatibilityFallbackReason(err error) string {
+	var apiErr *openai.Error
+	if errors.As(err, &apiErr) && apiErr.Message != "" {
+		return apiErr.Message
+	}
+	return "unsupported parameter: max_tool_calls"
 }
 
 func searchWebSearchTool(req SearchRequest) responses.ToolUnionParam {
 	tool := responses.WebSearchToolParam{Type: responses.WebSearchToolTypeWebSearch}
 	if req.Deep {
-		if req.SearchContextSize == "" {
-			req.SearchContextSize = "high"
-		}
 		tool.SearchContextSize = responses.WebSearchToolSearchContextSize(req.SearchContextSize)
 	}
 	return responses.ToolUnionParam{OfWebSearch: &tool}
@@ -204,13 +262,34 @@ func (c *Client) searchStreaming(ctx context.Context, params responses.ResponseN
 			}
 		}
 	}
-	if err := stream.Err(); err != nil {
+	return searchStreamResult(builder.String(), doneText, stream.Err())
+}
+
+func searchStreamResult(deltaText, doneText string, err error) (string, error) {
+	if err != nil {
+		text := firstNonEmptyString(doneText, deltaText)
+		if text != "" && isUnexpectedJSONEOF(err) {
+			return text, nil
+		}
 		return "", err
 	}
-	if doneText != "" {
-		return doneText, nil
+	return firstNonEmptyString(doneText, deltaText), nil
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
 	}
-	return builder.String(), nil
+	return ""
+}
+
+func isUnexpectedJSONEOF(err error) bool {
+	if errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, fs.ErrInvalid) {
+		return true
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "unexpected end of json input")
 }
 
 func (c *Client) GenerateImage(ctx context.Context, req ImageRequest) (ImageResults, error) {

@@ -108,13 +108,17 @@ Run guidance:
 				payload := map[string]any{
 					"command":             "search",
 					"deep":                opts.Deep,
-					"model":               searchModel(opts),
-					"reasoning_effort":    deepStringValue(opts.Deep, opts.ReasoningEffort, "high"),
-					"search_context_size": deepStringValue(opts.Deep, opts.SearchContextSize, "high"),
-					"max_tool_calls":      deepIntValue(opts.Deep, opts.MaxToolCalls, 8),
-					"max_output_tokens":   deepIntValue(opts.Deep, opts.MaxOutputTokens, 8000),
+					"model":               res.Model,
+					"reasoning_effort":    res.ReasoningEffort,
+					"search_context_size": res.SearchContextSize,
+					"max_tool_calls":      res.MaxToolCalls,
+					"max_output_tokens":   res.MaxOutputTokens,
 					"query":               args[0],
 					"text":                res.Text,
+				}
+				if res.CompatibilityFallback {
+					payload["compatibility_fallback"] = true
+					payload["compatibility_fallback_reason"] = res.CompatibilityFallbackReason
 				}
 				return writeJSON(cmd, payload)
 			}

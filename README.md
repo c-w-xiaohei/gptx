@@ -53,6 +53,8 @@ Update by running:
 gptx update
 ```
 
+`gptx update` also prints a Linux GitHub release archive fallback using `gh release download`, `checksums.txt` verification, and installation to `$HOME/.local/bin/gptx`.
+
 ## Agent Skill
 
 This repository includes a `gptx` skill for agent environments that support `npx skills`. It documents when to use `gptx`, how to configure it, and practical search/image workflows.
@@ -153,6 +155,8 @@ Deep search is for longer cited research. Enable it with `--deep`:
 - `max_tool_calls=8`
 - `max_output_tokens=8000`
 - supports `--bg` for local background jobs
+
+Some OpenAI-compatible gateways reject `max_tool_calls`. In that case, deep search retries once without `max_tool_calls` and reports `compatibility_fallback` in JSON output while preserving the other deep defaults.
 
 Ordinary search stays foreground-oriented for quick lookups. `--bg` is only valid with `--deep` for search.
 

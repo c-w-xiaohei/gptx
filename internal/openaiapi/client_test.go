@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"image"
 	"image/color"
 	"image/png"
@@ -173,6 +174,149 @@ func TestDeepSearchUsesHighEffortResponsesParameters(t *testing.T) {
 		if !strings.Contains(instructions, want) {
 			t.Fatalf("deep instructions missing %q: %s", want, instructions)
 		}
+	}
+}
+
+func TestDeepSearchRetriesWithoutMaxToolCallsWhenUnsupported(t *testing.T) {
+	var bodies []map[string]any
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		bodies = append(bodies, body)
+		if len(bodies) == 1 {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":{"message":"Unsupported parameter: max_tool_calls","type":"invalid_request_error","param":"max_tool_calls"}}`))
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("event: response.output_text.done\n"))
+		_, _ = w.Write([]byte("data: {\"type\":\"response.output_text.done\",\"text\":\"fallback ok\"}\n\n"))
+	}))
+	defer ts.Close()
+
+	c := NewClient(ts.URL, "test-key", ts.Client())
+	res, err := c.Search(context.Background(), SearchRequest{Input: "research deeply", Deep: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(bodies) != 2 {
+		t.Fatalf("requests = %d, want 2", len(bodies))
+	}
+	if int(bodies[0]["max_tool_calls"].(float64)) != 8 {
+		t.Fatalf("first max_tool_calls = %#v", bodies[0]["max_tool_calls"])
+	}
+	if _, ok := bodies[1]["max_tool_calls"]; ok {
+		t.Fatalf("retry should omit max_tool_calls, got %#v", bodies[1])
+	}
+	if bodies[1]["model"] != DefaultDeepSearchModel {
+		t.Fatalf("retry model = %#v", bodies[1]["model"])
+	}
+	if bodies[1]["reasoning"].(map[string]any)["effort"] != "high" {
+		t.Fatalf("retry reasoning = %#v", bodies[1]["reasoning"])
+	}
+	tool := bodies[1]["tools"].([]any)[0].(map[string]any)
+	if tool["search_context_size"] != "high" {
+		t.Fatalf("retry tool = %#v", tool)
+	}
+	if int(bodies[1]["max_output_tokens"].(float64)) != 8000 {
+		t.Fatalf("retry max_output_tokens = %#v", bodies[1]["max_output_tokens"])
+	}
+	if res.Text != "fallback ok" {
+		t.Fatalf("text = %q", res.Text)
+	}
+	if !res.CompatibilityFallback {
+		t.Fatalf("CompatibilityFallback = false, want true")
+	}
+	if !strings.Contains(res.CompatibilityFallbackReason, "max_tool_calls") {
+		t.Fatalf("CompatibilityFallbackReason = %q", res.CompatibilityFallbackReason)
+	}
+	if res.MaxToolCalls != 0 {
+		t.Fatalf("MaxToolCalls = %d, want 0", res.MaxToolCalls)
+	}
+}
+
+func TestSearchReturnsDoneTextWhenStreamEndsWithoutDoneSentinel(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("event: response.output_text.done\n"))
+		_, _ = w.Write([]byte("data: {\"type\":\"response.output_text.done\",\"text\":\"done text before eof\"}\n\n"))
+		_, _ = w.Write([]byte("event: response.completed\n"))
+		_, _ = w.Write([]byte("data: {\"type\":\"response.completed\",\"response\":{\"output\":[]}}\n\n"))
+	}))
+	defer ts.Close()
+
+	c := NewClient(ts.URL, "test-key", ts.Client())
+	res, err := c.Search(context.Background(), SearchRequest{Input: "query"})
+	if err != nil {
+		t.Fatalf("search should use collected done text despite stream EOF: %v", err)
+	}
+	if res.Text != "done text before eof" {
+		t.Fatalf("text = %q", res.Text)
+	}
+}
+
+func TestSearchStreamResultUsesTextOnUnexpectedJSONEOF(t *testing.T) {
+	text, err := searchStreamResult("delta text", "done text", errors.New("unexpected end of JSON input"))
+	if err != nil {
+		t.Fatalf("expected collected text, got err: %v", err)
+	}
+	if text != "done text" {
+		t.Fatalf("text = %q", text)
+	}
+}
+
+func TestSearchStreamResultReturnsOtherErrors(t *testing.T) {
+	_, err := searchStreamResult("delta text", "done text", errors.New("connection reset"))
+	if err == nil || !strings.Contains(err.Error(), "connection reset") {
+		t.Fatalf("expected original error, got %v", err)
+	}
+}
+
+func TestDeepSearchDoesNotRetryNonCompatibilityBadRequest(t *testing.T) {
+	requests := 0
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":{"message":"Invalid model","type":"invalid_request_error","param":"model"}}`))
+	}))
+	defer ts.Close()
+
+	c := NewClient(ts.URL, "test-key", ts.Client())
+	_, err := c.Search(context.Background(), SearchRequest{Input: "research deeply", Deep: true})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if requests != 1 {
+		t.Fatalf("requests = %d, want 1", requests)
+	}
+}
+
+func TestDeepSearchDoesNotRetryMaxToolCallsValidationError(t *testing.T) {
+	requests := 0
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":{"message":"max_tool_calls must be less than or equal to 4","type":"invalid_request_error","param":"max_tool_calls"}}`))
+	}))
+	defer ts.Close()
+
+	c := NewClient(ts.URL, "test-key", ts.Client())
+	_, err := c.Search(context.Background(), SearchRequest{Input: "research deeply", Deep: true, MaxToolCalls: 99})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if requests != 1 {
+		t.Fatalf("requests = %d, want 1", requests)
 	}
 }
 

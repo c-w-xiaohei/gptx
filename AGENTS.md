@@ -119,6 +119,7 @@ Search requirements:
 - Endpoint: `POST /responses` through the configured OpenAI-compatible base URL.
 - Default model: `gpt-5.4-mini`.
 - Deep search defaults: model `gpt-5.5`, `reasoning.effort=high`, `web_search.search_context_size=high`, `max_tool_calls=8`, and `max_output_tokens=8000`.
+- If an OpenAI-compatible gateway rejects `max_tool_calls`, retry deep search exactly once without `max_tool_calls` and report the effective compatibility fallback in JSON output.
 - Must support model override via `gptx search --model`.
 - Tool: `web_search`, not `web_search_preview`.
 - Input shape: list-style Responses input item, not plain string.
@@ -155,7 +156,7 @@ Help text is product surface. Agents learn this CLI from `--help`.
 - For normal agent-driven deep search and real image API calls, prefer `--bg` so long remote calls can continue as local background jobs.
 - Ordinary search is foreground-oriented; search `--bg` is only supported with `--deep`.
 - `gptx version` must stay fast and local; use `gptx version check` for explicit network/cache update checks.
-- `gptx update` prints `go install github.com/c-w-xiaohei/gptx/cmd/gptx@latest` and must not require an API key or network.
+- `gptx update` prints `go install github.com/c-w-xiaohei/gptx/cmd/gptx@latest` plus a local-only GitHub release archive fallback command block where supported; it must not require an API key or perform network calls itself.
 - `gptx job status/result/logs` inspect local background jobs by job ID.
 - Errors and diagnostics go to stderr and must return non-zero.
 - Missing API key must be visible and actionable.

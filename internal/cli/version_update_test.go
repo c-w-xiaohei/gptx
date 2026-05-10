@@ -224,6 +224,43 @@ func TestUpdateCommandPrintsInstallHintWithoutAPIKey(t *testing.T) {
 	}
 }
 
+func TestUpdateCommandTextIncludesFallbackGitHubArchiveCommands(t *testing.T) {
+	t.Setenv("GPTX_OPENAI_API_KEY", "")
+	oldGOOS := updateRuntimeGOOS
+	oldGOARCH := updateRuntimeGOARCH
+	updateRuntimeGOOS = "linux"
+	updateRuntimeGOARCH = "amd64"
+	t.Cleanup(func() {
+		updateRuntimeGOOS = oldGOOS
+		updateRuntimeGOARCH = oldGOARCH
+	})
+
+	cmd := NewRootCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"update"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("update should not fail: %v", err)
+	}
+	text := out.String()
+	for _, want := range []string{
+		installHint,
+		"Fallback GitHub release archive install:",
+		"gh release download --repo c-w-xiaohei/gptx --pattern 'gptx_*_",
+		".tar.gz' --dir \"$tmp\" --clobber",
+		"gh release download --repo c-w-xiaohei/gptx --pattern checksums.txt --dir \"$tmp\" --clobber",
+		"sha256sum -c --ignore-missing checksums.txt",
+		"tar -xzf \"$tmp\"/gptx_*.tar.gz -C \"$tmp\"",
+		"install -m 0755 \"$tmp/gptx\" \"$HOME/.local/bin/gptx\"",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("update output missing %q, got %q", want, text)
+		}
+	}
+}
+
 func TestUpdateCommandHonorsJSONOutput(t *testing.T) {
 	t.Setenv("GPTX_OPENAI_API_KEY", "")
 
@@ -247,6 +284,71 @@ func TestUpdateCommandHonorsJSONOutput(t *testing.T) {
 	}
 }
 
+func TestUpdateCommandJSONIncludesFallbackCommands(t *testing.T) {
+	t.Setenv("GPTX_OPENAI_API_KEY", "")
+	oldGOOS := updateRuntimeGOOS
+	oldGOARCH := updateRuntimeGOARCH
+	updateRuntimeGOOS = "linux"
+	updateRuntimeGOARCH = "amd64"
+	t.Cleanup(func() {
+		updateRuntimeGOOS = oldGOOS
+		updateRuntimeGOARCH = oldGOARCH
+	})
+
+	cmd := NewRootCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"--format", "json", "update"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("update should not fail: %v", err)
+	}
+	var payload updateOutput
+	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
+		t.Fatalf("decode update json: %v\n%s", err, out.String())
+	}
+	if payload.InstallHint != installHint || !strings.Contains(payload.Message, "install or update") {
+		t.Fatalf("unexpected payload: %+v", payload)
+	}
+	if len(payload.FallbackCommands) == 0 {
+		t.Fatalf("expected fallback commands in payload: %+v", payload)
+	}
+}
+
+func TestUpdateFallbackCommandsForLinuxAMD64(t *testing.T) {
+	commands := updateFallbackCommands("linux", "amd64")
+	if len(commands) != 8 {
+		t.Fatalf("expected 8 commands, got %d: %#v", len(commands), commands)
+	}
+	for _, want := range []string{
+		`set -e`,
+		`tmp="$(mktemp -d)"`,
+		`gh release download --repo c-w-xiaohei/gptx --pattern 'gptx_*_linux_amd64.tar.gz' --dir "$tmp" --clobber`,
+		`gh release download --repo c-w-xiaohei/gptx --pattern checksums.txt --dir "$tmp" --clobber`,
+		`(cd "$tmp" && sha256sum -c --ignore-missing checksums.txt)`,
+		`tar -xzf "$tmp"/gptx_*.tar.gz -C "$tmp"`,
+		`mkdir -p "$HOME/.local/bin"`,
+		`install -m 0755 "$tmp/gptx" "$HOME/.local/bin/gptx"`,
+	} {
+		if !containsString(commands, want) {
+			t.Fatalf("commands missing %q: %#v", want, commands)
+		}
+	}
+}
+
+func TestUpdateFallbackCommandsUnsupportedPlatform(t *testing.T) {
+	if commands := updateFallbackCommands("windows", "amd64"); len(commands) != 0 {
+		t.Fatalf("expected no fallback commands for unsupported platform, got %#v", commands)
+	}
+	if commands := updateFallbackCommands("darwin", "amd64"); len(commands) != 0 {
+		t.Fatalf("expected no fallback commands for darwin until checksum verification is portable, got %#v", commands)
+	}
+	if commands := updateFallbackCommands("linux", "386"); len(commands) != 0 {
+		t.Fatalf("expected no fallback commands for unsupported architecture, got %#v", commands)
+	}
+}
+
 func TestVersionAndUpdateRejectInvalidGlobalFormat(t *testing.T) {
 	for _, args := range [][]string{{"--format", "yaml", "version"}, {"--format", "yaml", "update"}} {
 		cmd := NewRootCommand()
@@ -260,6 +362,15 @@ func TestVersionAndUpdateRejectInvalidGlobalFormat(t *testing.T) {
 			t.Fatalf("%v expected invalid format error, got %v", args, err)
 		}
 	}
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func TestVersionAndUpdateHelpDoNotFetchLatestRelease(t *testing.T) {

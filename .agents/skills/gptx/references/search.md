@@ -60,6 +60,7 @@ Use `--json` or `--format json` when another tool or agent needs to parse result
 - Sends `POST /responses` through the configured OpenAI base URL.
 - Uses model default `gpt-5.4-mini`.
 - Deep search uses model default `gpt-5.5`, `reasoning.effort=high`, `web_search.search_context_size=high`, `max_tool_calls=8`, and `max_output_tokens=8000`.
+- If a compatible gateway rejects `max_tool_calls`, deep search retries once without it. JSON output reports `compatibility_fallback`, `compatibility_fallback_reason`, and the effective `max_tool_calls` value.
 - Supports model override via `--model`.
 - Enables hosted `web_search`.
 - Sends `store=false`.

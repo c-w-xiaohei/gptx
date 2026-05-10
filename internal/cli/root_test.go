@@ -142,6 +142,58 @@ func TestSearchJSONIncludesDeepMetadata(t *testing.T) {
 	}
 }
 
+func TestSearchJSONReportsDeepFallbackEffectiveMetadata(t *testing.T) {
+	t.Setenv("GPTX_OPENAI_API_KEY", "secret")
+	requests := 0
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if requests == 1 {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":{"message":"Unsupported parameter: max_tool_calls","type":"invalid_request_error","param":"max_tool_calls"}}`))
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("event: response.output_text.done\n"))
+		_, _ = w.Write([]byte("data: {\"type\":\"response.output_text.done\",\"text\":\"deep answer\"}\n\n"))
+	}))
+	defer ts.Close()
+
+	cmd := NewRootCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"--base-url", ts.URL, "search", "query", "--deep", "--json"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("deep search json should not fail: %v", err)
+	}
+	if requests != 2 {
+		t.Fatalf("requests = %d, want 2", requests)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
+		t.Fatalf("decode json: %v\n%s", err, out.String())
+	}
+	if payload["max_tool_calls"] != float64(0) {
+		t.Fatalf("max_tool_calls = %#v, want 0 in %#v", payload["max_tool_calls"], payload)
+	}
+	if payload["compatibility_fallback"] != true {
+		t.Fatalf("compatibility_fallback = %#v in %#v", payload["compatibility_fallback"], payload)
+	}
+	reason, ok := payload["compatibility_fallback_reason"].(string)
+	if !ok || !strings.Contains(reason, "max_tool_calls") {
+		t.Fatalf("compatibility_fallback_reason = %#v in %#v", payload["compatibility_fallback_reason"], payload)
+	}
+	if payload["reasoning_effort"] != "high" || payload["search_context_size"] != "high" || payload["max_output_tokens"] != float64(8000) {
+		t.Fatalf("deep metadata = %#v", payload)
+	}
+	if strings.Contains(out.String(), "secret") {
+		t.Fatalf("json output leaked API key: %q", out.String())
+	}
+}
+
 func TestStatusShowsConfiguredAuthenticationWithoutSecret(t *testing.T) {
 	t.Setenv("GPTX_OPENAI_BASE_URL", "https://example.test/v1")
 	t.Setenv("GPTX_OPENAI_API_KEY", "secret-key")

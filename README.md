@@ -53,7 +53,7 @@ Update by running:
 gptx update
 ```
 
-`gptx update` also prints a Linux GitHub release archive fallback using `gh release download`, `checksums.txt` verification, and installation to `$HOME/.local/bin/gptx`.
+`gptx update` also prints a Linux GitHub release archive fallback using direct GitHub download URLs, `checksums.txt` verification, and installation to `$HOME/.local/bin/gptx`. It does not require the GitHub CLI.
 
 ## Agent Skill
 

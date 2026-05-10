@@ -128,14 +128,18 @@ func updateFallbackCommands(goos, goarch string) []string {
 	if goarch != "amd64" && goarch != "arm64" {
 		return nil
 	}
-	pattern := fmt.Sprintf("gptx_*_%s_%s.tar.gz", goos, goarch)
+	archiveName := fmt.Sprintf("gptx_%s_%s.tar.gz", goos, goarch)
+	archiveURL := "https://github.com/c-w-xiaohei/gptx/releases/latest/download/" + archiveName
+	checksumsURL := "https://github.com/c-w-xiaohei/gptx/releases/latest/download/checksums.txt"
 	return []string{
 		`set -e`,
 		`tmp="$(mktemp -d)"`,
-		fmt.Sprintf(`gh release download --repo c-w-xiaohei/gptx --pattern '%s' --dir "$tmp" --clobber`, pattern),
-		`gh release download --repo c-w-xiaohei/gptx --pattern checksums.txt --dir "$tmp" --clobber`,
+		fmt.Sprintf(`archive="$tmp/%s"`, archiveName),
+		`checksums="$tmp/checksums.txt"`,
+		fmt.Sprintf(`curl -fL --retry 3 -o "$archive" "%s"`, archiveURL),
+		fmt.Sprintf(`curl -fL --retry 3 -o "$checksums" "%s"`, checksumsURL),
 		`(cd "$tmp" && sha256sum -c --ignore-missing checksums.txt)`,
-		`tar -xzf "$tmp"/gptx_*.tar.gz -C "$tmp"`,
+		`tar -xzf "$archive" -C "$tmp"`,
 		`mkdir -p "$HOME/.local/bin"`,
 		`install -m 0755 "$tmp/gptx" "$HOME/.local/bin/gptx"`,
 	}

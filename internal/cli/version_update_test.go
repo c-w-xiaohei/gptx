@@ -248,11 +248,11 @@ func TestUpdateCommandTextIncludesFallbackGitHubArchiveCommands(t *testing.T) {
 	for _, want := range []string{
 		installHint,
 		"Fallback GitHub release archive install:",
-		"gh release download --repo c-w-xiaohei/gptx --pattern 'gptx_*_",
-		".tar.gz' --dir \"$tmp\" --clobber",
-		"gh release download --repo c-w-xiaohei/gptx --pattern checksums.txt --dir \"$tmp\" --clobber",
+		"https://github.com/c-w-xiaohei/gptx/releases/latest/download/gptx_",
+		"curl -fL --retry 3 -o \"$archive\"",
+		"curl -fL --retry 3 -o \"$checksums\"",
 		"sha256sum -c --ignore-missing checksums.txt",
-		"tar -xzf \"$tmp\"/gptx_*.tar.gz -C \"$tmp\"",
+		"tar -xzf \"$archive\" -C \"$tmp\"",
 		"install -m 0755 \"$tmp/gptx\" \"$HOME/.local/bin/gptx\"",
 	} {
 		if !strings.Contains(text, want) {
@@ -318,16 +318,18 @@ func TestUpdateCommandJSONIncludesFallbackCommands(t *testing.T) {
 
 func TestUpdateFallbackCommandsForLinuxAMD64(t *testing.T) {
 	commands := updateFallbackCommands("linux", "amd64")
-	if len(commands) != 8 {
-		t.Fatalf("expected 8 commands, got %d: %#v", len(commands), commands)
+	if len(commands) != 10 {
+		t.Fatalf("expected 10 commands, got %d: %#v", len(commands), commands)
 	}
 	for _, want := range []string{
 		`set -e`,
 		`tmp="$(mktemp -d)"`,
-		`gh release download --repo c-w-xiaohei/gptx --pattern 'gptx_*_linux_amd64.tar.gz' --dir "$tmp" --clobber`,
-		`gh release download --repo c-w-xiaohei/gptx --pattern checksums.txt --dir "$tmp" --clobber`,
+		`archive="$tmp/gptx_linux_amd64.tar.gz"`,
+		`checksums="$tmp/checksums.txt"`,
+		`curl -fL --retry 3 -o "$archive" "https://github.com/c-w-xiaohei/gptx/releases/latest/download/gptx_linux_amd64.tar.gz"`,
+		`curl -fL --retry 3 -o "$checksums" "https://github.com/c-w-xiaohei/gptx/releases/latest/download/checksums.txt"`,
 		`(cd "$tmp" && sha256sum -c --ignore-missing checksums.txt)`,
-		`tar -xzf "$tmp"/gptx_*.tar.gz -C "$tmp"`,
+		`tar -xzf "$archive" -C "$tmp"`,
 		`mkdir -p "$HOME/.local/bin"`,
 		`install -m 0755 "$tmp/gptx" "$HOME/.local/bin/gptx"`,
 	} {

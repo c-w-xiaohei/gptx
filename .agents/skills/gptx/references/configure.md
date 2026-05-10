@@ -50,7 +50,7 @@ Print the supported update command:
 gptx update
 ```
 
-On Linux amd64/arm64, `gptx update` also prints a fallback block that downloads the latest GitHub release archive with `gh release download`, verifies `checksums.txt`, and installs the binary to `$HOME/.local/bin/gptx`. The command only prints this fallback; it does not execute `gh`, `go`, or any network request by itself.
+On Linux amd64/arm64, `gptx update` also prints a fallback block that downloads the latest GitHub release archive with direct GitHub URLs, verifies `checksums.txt`, and installs the binary to `$HOME/.local/bin/gptx`. The command only prints this fallback; it does not execute `curl`, `go`, or any network request by itself, and it does not require the GitHub CLI.
 
 ## PATH And Fish
 
@@ -79,23 +79,16 @@ export GPTX_OPENAI_BASE_URL=https://your-gateway.example/v1
 ## Release Archive Install
 
 ```sh
-rm -rf /tmp/gptx-install
-mkdir -p /tmp/gptx-install
-
-gh release download v0.2.0 \
-  --repo c-w-xiaohei/gptx \
-  --pattern 'gptx_0.2.0_linux_amd64.tar.gz' \
-  --dir /tmp/gptx-install
-
-gh release download v0.2.0 \
-  --repo c-w-xiaohei/gptx \
-  --pattern checksums.txt \
-  --dir /tmp/gptx-install
-
-(cd /tmp/gptx-install && sha256sum -c --ignore-missing checksums.txt)
-
-tar -xzf /tmp/gptx-install/gptx_0.2.0_linux_amd64.tar.gz -C /tmp/gptx-install
-install -m 755 /tmp/gptx-install/gptx "$HOME/.local/bin/gptx"
+set -e
+tmp="$(mktemp -d)"
+archive="$tmp/gptx_linux_amd64.tar.gz"
+checksums="$tmp/checksums.txt"
+curl -fL --retry 3 -o "$archive" "https://github.com/c-w-xiaohei/gptx/releases/latest/download/gptx_linux_amd64.tar.gz"
+curl -fL --retry 3 -o "$checksums" "https://github.com/c-w-xiaohei/gptx/releases/latest/download/checksums.txt"
+(cd "$tmp" && sha256sum -c --ignore-missing checksums.txt)
+tar -xzf "$archive" -C "$tmp"
+mkdir -p "$HOME/.local/bin"
+install -m 755 "$tmp/gptx" "$HOME/.local/bin/gptx"
 ```
 
 ## Troubleshooting

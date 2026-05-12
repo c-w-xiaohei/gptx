@@ -23,7 +23,7 @@ gptx version check
 gptx status
 ```
 
-Use JSON when another tool or agent will parse the result. For long research, use `search --deep --bg`; ordinary search is foreground-oriented and rejects `--bg` unless `--deep` is set. For real image API calls, prefer local background jobs with `--bg` so the session can continue while the remote call completes:
+Use JSON when another tool or agent will parse the result. For agent-driven deep research, default to `search --deep --json --bg` unless the user explicitly needs foreground output. Deep research can run long and network/tool timeouts can interrupt foreground calls; background jobs keep the remote work alive and let the session poll results. Ordinary search is foreground-oriented and rejects `--bg` unless `--deep` is set. For real image API calls, prefer local background jobs with `--bg` so the session can continue while the remote call completes:
 
 ```sh
 gptx status --json
@@ -35,6 +35,8 @@ gptx image generate "match this design system" --image ./design-system.png --out
 gptx image edit "remove only the background; keep the product unchanged" --image ./product.png --dry-run --out /tmp/product-cutout.png --json
 gptx image edit "remove only the background; keep the product unchanged" --image ./product.png --out /tmp/product-cutout.png --json --bg
 ```
+
+Write deep research queries as self-contained, high-fidelity research briefs. Assume the search tool does not know the surrounding chat, repo, prior findings, user intent, acronyms, or hidden constraints. Include the exact question, important spelling variants, entities, timeframe, scope boundaries, required source quality, desired output format, and what to separate or verify. Do not pass vague prompts such as `research this` or `find sources`; preserve the user's actual investigation target in the command string.
 
 For image generation or editing, use `--dry-run --json` first to validate planned output paths before paid API calls. For the real call, remove `--dry-run` and add `--bg` unless the user explicitly needs foreground output. Do not combine `--dry-run` and `--bg`. Do not print raw image base64 or ask the user to paste API keys into chat.
 

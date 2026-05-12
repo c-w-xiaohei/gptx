@@ -2,6 +2,8 @@
 
 Use `gptx search` for cited research and web investigation.
 
+For normal agent-driven deep research, use `--deep --json --bg` by default. Foreground deep searches are more likely to fail from network wobble, shell/tool timeouts, or session interruption before the remote Responses call finishes. Use foreground deep search only when the user explicitly needs immediate terminal output and accepts the timeout risk.
+
 ## Research Strategy
 
 Treat serious research as an iterative investigation, not a single query. Run multiple focused searches from different angles, compare answers, and keep searching until the conclusion is specific, sourced, and decision-ready.
@@ -11,6 +13,14 @@ Research must be both broad and deep. Broad means covering the relevant official
 Any conclusion derived from research must include cited sources. A conclusion without source citations is invalid. Prefer official documentation, source repositories, standards/specifications, release notes, reputable technical writeups, and direct primary evidence. Avoid relying on unsourced summaries when a primary source can be found.
 
 Never fabricate, infer beyond the evidence, or present unsupported claims as facts. Every research-based conclusion must be grounded completely in valid, high-quality sources. If sources are missing, weak, outdated, or contradictory, state the uncertainty instead of filling the gap.
+
+Write each deep research prompt as a self-contained brief. Assume `gptx search` has no access to the current conversation, codebase, screenshots, previous tool output, or unstated context. Include the exact research question, named entities, spelling variants, timeframe, geography/platform/language constraints, source-quality requirements, primary-vs-secondary separation requirements, and the expected structure of the answer. If the user gave nuanced wording, preserve it in the query instead of compressing it into a vague topic.
+
+Prefer this shape for deep research prompts:
+
+```text
+Find/verify <specific claim or object>. Context: <domain and why it matters>. Scope: <timeframe, platforms, languages, inclusions/exclusions>. Search for variants: <spellings, aliases, related terms>. Required evidence: <primary sources, canonical URLs, downloadable files, official docs, source repos, archived pages>. Output: <separate primary sources from secondary mentions, include exact quotes, cite every factual claim, state uncertainty>.
+```
 
 Match the research shape to the task's divergence:
 
@@ -44,6 +54,12 @@ Follow-up query patterns:
 - Alternatives: `gptx search "<tool A> vs <tool B> tradeoffs" --deep --json --bg`
 - Recent state: `gptx search "<topic> current status 2026" --deep --json --bg`
 
+Avoid vague deep prompts:
+
+- Bad: `gptx search "research this" --deep --json --bg`
+- Bad: `gptx search "find sources for the phrase" --deep --json --bg`
+- Good: `gptx search "Find the original source, exact full wording, and downloadable files/pages for 'impaccable ai slop' or 'impeccable ai slop'. Focus on AI image generation/design critique contexts. Identify the author, platform, canonical URL, exact phrase spelling variants, complete quote, and any source files/posts/slides that can be captured high-fidelity. Include citations and clearly separate primary sources from secondary mentions." --deep --json --bg`
+
 ## Command Examples
 
 ```sh
@@ -53,7 +69,7 @@ gptx search "OpenAI Responses web_search examples" --deep --model gpt-5.5 --json
 gptx search "incident timeline" --deep --instructions-file ./instructions.txt --json --bg
 ```
 
-Use `--json` or `--format json` when another tool or agent needs to parse results. Use ordinary foreground search for quick lookups. Use `--deep --bg` for normal agent-driven long research so the session can continue while the remote call completes.
+Use `--json` or `--format json` when another tool or agent needs to parse results. Use ordinary foreground search for quick lookups. Use `--deep --json --bg` for normal agent-driven long research so the session can continue while the remote call completes and avoid foreground timeout failures.
 
 ## Behavior
 
@@ -69,7 +85,7 @@ Use `--json` or `--format json` when another tool or agent needs to parse result
 
 ## Long-Running Search
 
-For normal agent-driven searches and long research queries, use `--deep --bg` so the session can continue while the remote Responses API call completes:
+For normal agent-driven searches and long research queries, use `--deep --json --bg` so the session can continue while the remote Responses API call completes and the result remains machine-readable:
 
 ```sh
 gptx search "compare Go release automation options" --deep --json --bg

@@ -73,21 +73,23 @@ func newJobCommand(root *rootOptions) *cobra.Command {
 
 For deep search and real image API calls, prefer background mode so long remote
 calls can continue outside the interactive session. Use --bg on search --deep,
-image generate, and image edit, or use job start explicitly.
+image generate, and image edit, then use job wait to block until completion.
 
-Examples:
-  gptx search "latest OpenAI image docs" --deep --json --bg
-  gptx image generate "poster" --dry-run --out ./poster.png --json
-  gptx image generate "poster" --out ./poster.png --json --bg
-  gptx job start -- search "latest OpenAI image docs" --deep --json
-  gptx job start -- image generate "poster" --out ./poster.png --json
-  gptx job status <job_id>
-  gptx job result <job_id>
-  gptx job logs <job_id>
-  gptx job cancel <job_id>`}
+	Examples:
+	  gptx search "latest OpenAI image docs" --deep --json --bg
+	  gptx image generate "poster" --dry-run --out ./poster.png --json
+	  gptx image generate "poster" --out ./poster.png --json --bg
+	  gptx job start -- search "latest OpenAI image docs" --deep --json
+	  gptx job start -- image generate "poster" --out ./poster.png --json
+	  gptx job wait <job_id>
+	  gptx job status <job_id>
+	  gptx job result <job_id>
+	  gptx job logs <job_id>
+	  gptx job cancel <job_id>`}
 	cmd.AddCommand(newJobStartCommand(root))
 	cmd.AddCommand(newJobListCommand(root))
 	cmd.AddCommand(newJobStatusCommand(root))
+	cmd.AddCommand(newJobWaitCommand(root))
 	cmd.AddCommand(newJobResultCommand(root))
 	cmd.AddCommand(newJobLogsCommand(root))
 	cmd.AddCommand(newJobCancelCommand(root))
@@ -186,6 +188,45 @@ func newJobStatusCommand(root *rootOptions) *cobra.Command {
 	return cmd
 }
 
+func newJobWaitCommand(root *rootOptions) *cobra.Command {
+	var jsonOut bool
+	var interval time.Duration
+	cmd := &cobra.Command{
+		Use:   "wait <job_id>",
+		Short: "Wait for a local background job to finish",
+		Long: `Wait until a local background job reaches a terminal state, then print its result.
+
+The command polls local job metadata. It exits successfully only when the job
+succeeds. Failed, canceled, and wait-timeout jobs return non-zero after printing
+the final result or status details.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			resolvedRoot, err := resolveRootOptions(root, false)
+			if err != nil {
+				return err
+			}
+			status, err := waitForJob(args[0], resolvedRoot.Timeout, interval)
+			if err != nil {
+				return err
+			}
+			if err := writeJobResultByID(cmd, args[0], isJSONOutput(resolvedRoot.Format, resolvedRoot.JSON, jsonOut)); err != nil {
+				return err
+			}
+			switch status.State {
+			case jobStateSucceeded:
+				return nil
+			case jobStateFailed, jobStateCanceled:
+				return jobTerminalError(status)
+			default:
+				return fmt.Errorf("job %s ended in state %s", args[0], status.State)
+			}
+		},
+	}
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "emit JSON output")
+	cmd.Flags().DurationVar(&interval, "interval", 2*time.Second, "poll interval (e.g. 500ms, 2s, 10s)")
+	return cmd
+}
+
 func newJobResultCommand(root *rootOptions) *cobra.Command {
 	var jsonOut bool
 	cmd := &cobra.Command{
@@ -197,26 +238,74 @@ func newJobResultCommand(root *rootOptions) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			path, err := jobFile(args[0], "result.json")
-			if err != nil {
-				return err
-			}
-			data, err := os.ReadFile(path)
-			if err != nil {
-				return fmt.Errorf("read job result: %w", err)
-			}
-			if isJSONOutput(resolvedRoot.Format, resolvedRoot.JSON, jsonOut) {
-				_, err = cmd.OutOrStdout().Write(data)
-				if err == nil && len(data) > 0 && data[len(data)-1] != '\n' {
-					_, err = fmt.Fprintln(cmd.OutOrStdout())
-				}
-				return err
-			}
-			return writeHumanJobResult(cmd.OutOrStdout(), data)
+			return writeJobResultByID(cmd, args[0], isJSONOutput(resolvedRoot.Format, resolvedRoot.JSON, jsonOut))
 		},
 	}
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "emit JSON output")
 	return cmd
+}
+
+func waitForJob(jobID string, timeout, interval time.Duration) (jobStatusRecord, error) {
+	if timeout <= 0 {
+		timeout = defaultTimeout
+	}
+	if interval <= 0 {
+		interval = 2 * time.Second
+	}
+	deadline := time.Now().Add(timeout)
+	for {
+		_, status, err := readJob(jobID)
+		if err != nil {
+			return status, err
+		}
+		if isTerminalJobState(status.State) {
+			return status, nil
+		}
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return status, fmt.Errorf("timed out waiting for job %s after %s", jobID, timeout)
+		}
+		sleepFor := interval
+		if remaining < sleepFor {
+			sleepFor = remaining
+		}
+		time.Sleep(sleepFor)
+	}
+}
+
+func isTerminalJobState(state string) bool {
+	switch state {
+	case jobStateSucceeded, jobStateFailed, jobStateCanceled:
+		return true
+	default:
+		return false
+	}
+}
+
+func writeJobResultByID(cmd *cobra.Command, jobID string, jsonOut bool) error {
+	path, err := jobFile(jobID, "result.json")
+	if err != nil {
+		return err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read job result: %w", err)
+	}
+	if jsonOut {
+		_, err = cmd.OutOrStdout().Write(data)
+		if err == nil && len(data) > 0 && data[len(data)-1] != '\n' {
+			_, err = fmt.Fprintln(cmd.OutOrStdout())
+		}
+		return err
+	}
+	return writeHumanJobResult(cmd.OutOrStdout(), data)
+}
+
+func jobTerminalError(status jobStatusRecord) error {
+	if status.Error != "" {
+		return errors.New(status.Error)
+	}
+	return fmt.Errorf("job %s %s", status.ID, status.State)
 }
 
 func newJobLogsCommand(root *rootOptions) *cobra.Command {

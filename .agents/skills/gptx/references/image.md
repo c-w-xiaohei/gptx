@@ -149,8 +149,9 @@ Dry-run to real-run sequence:
 2. Read the planned `paths` and confirm they are safe.
 3. Remove `--dry-run` for the real call. Keep `--json` when another tool or agent will parse the result.
 4. Add `--bg` for normal or long real image API runs. Do not combine `--dry-run` and `--bg`.
-5. Inspect the returned job ID with `gptx job status`, `gptx job result`, and `gptx job logs --stderr`.
-6. If the real command fails because an output file exists, choose a new versioned path unless the user explicitly asked for `--overwrite`.
+5. Wait for the returned job ID with `gptx job wait <job_id>`.
+6. Use `gptx job status`, `gptx job result`, and `gptx job logs --stderr` only when diagnostics are needed.
+7. If the real command fails because an output file exists, choose a new versioned path unless the user explicitly asked for `--overwrite`.
 
 Output flags:
 

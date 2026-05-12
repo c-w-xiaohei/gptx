@@ -118,7 +118,7 @@ go run ./cmd/gptx version
 - `gptx search <query>`
 - `gptx image generate <prompt>`
 - `gptx image edit <prompt>`
-- `gptx job <start|list|status|result|logs|cancel|rm>`
+- `gptx job <start|list|wait|status|result|logs|cancel|rm>`
 - `gptx version`
 - `gptx version check`
 - `gptx update`
@@ -169,7 +169,7 @@ gptx search "best practices for OpenAI Responses prompts" --deep --bg
 gptx search "incident timeline" --deep --instructions-file ./instructions.txt --json --bg
 ```
 
-Use `--deep --bg` for normal agent-driven long research queries. The command prints a local job ID; inspect it with `gptx job status <job_id>`, `gptx job result <job_id>`, and `gptx job logs <job_id> --stderr`.
+Use `--deep --bg` for normal agent-driven long research queries. The command prints a local job ID; wait for completion with `gptx job wait <job_id>`. Use `gptx job status <job_id>`, `gptx job result <job_id>`, and `gptx job logs <job_id> --stderr` when you need diagnostics.
 
 ## Image Generate Behavior
 
@@ -249,12 +249,13 @@ Explicit job examples:
 ```bash
 gptx job start -- search "latest OpenAI image docs" --deep --json
 gptx job start -- image generate "poster" --out ./poster.png --json
+gptx job wait <job_id>
 gptx job status <job_id>
 gptx job result <job_id>
 gptx job logs <job_id> --stderr
 ```
 
-Background jobs use local metadata and log files. Use `GPTX_OPENAI_API_KEY` for credentials; explicit `--api-key` is rejected for background jobs so secrets are not serialized into job metadata.
+Background jobs use local metadata and log files. `gptx job wait <job_id>` polls until the job succeeds, fails, or is canceled, then prints the final result and returns non-zero for failed/canceled jobs. Use `GPTX_OPENAI_API_KEY` for credentials; explicit `--api-key` is rejected for background jobs so secrets are not serialized into job metadata.
 
 ## JSON Mode
 

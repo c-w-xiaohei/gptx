@@ -50,7 +50,7 @@ These are engineering defaults, not OpenAI SLAs.
 ## Practical Guidance
 
 1. Run `--dry-run --json` first to validate paths without paying for a remote call.
-2. Use `--bg` for normal real image API calls so shell/session interruptions do not kill the task.
+2. Use `--bg` for normal real image API calls so shell/session interruptions do not kill the task, then use `gptx job wait <job_id>` when the next step depends on the output.
 3. Keep fast drafts cheap: use `n=1`, square/smaller sizes, and `quality low` or `medium`.
 4. Treat `quality high`, `1536x1024`, `1024x1536`, reference images, masks, and dense UI screenshot prompts as long-tail jobs.
 5. Raise timeout explicitly for unusually heavy jobs, for example `gptx --timeout 30m image generate ... --bg`.

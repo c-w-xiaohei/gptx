@@ -59,7 +59,8 @@ Image output behavior:
 
 Background jobs:
   - For deep search and real image API calls, prefer --bg so long remote calls can continue outside the interactive session.
-  - Use gptx job status/result/logs with the returned job ID to inspect progress, outputs, and diagnostics.
+  - Use gptx job wait with the returned job ID to block until completion and print the final result.
+  - Use gptx job status/result/logs to inspect progress, outputs, and diagnostics when needed.
   - Use foreground execution for help, status, version, and image --dry-run planning commands.
 
 Implementation notes:
@@ -94,6 +95,7 @@ Implementation notes:
   gptx image generate "logo concept" --out ./logo.png --bg
   gptx image edit "remove the background" --dry-run --image ./in.png --mask ./mask.png --out ./edited.png --json
   gptx image edit "remove the background" --image ./in.png --mask ./mask.png --out ./edited.png --bg
+  gptx job wait <job_id>
   gptx job status <job_id>
   gptx job result <job_id>
 

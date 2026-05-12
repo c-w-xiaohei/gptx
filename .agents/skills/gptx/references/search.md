@@ -91,7 +91,13 @@ For normal agent-driven searches and long research queries, use `--deep --json -
 gptx search "compare Go release automation options" --deep --json --bg
 ```
 
-Then inspect the returned job ID:
+Then wait for the returned job ID:
+
+```sh
+gptx job wait <job_id>
+```
+
+Use diagnostics only when needed:
 
 ```sh
 gptx job status <job_id>

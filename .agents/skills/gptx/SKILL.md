@@ -23,13 +23,14 @@ gptx version check
 gptx status
 ```
 
-Use JSON when another tool or agent will parse the result. For agent-driven deep research, default to `search --deep --json --bg` unless the user explicitly needs foreground output. Deep research can run long and network/tool timeouts can interrupt foreground calls; background jobs keep the remote work alive and let the session poll results. Ordinary search is foreground-oriented and rejects `--bg` unless `--deep` is set. For real image API calls, prefer local background jobs with `--bg` so the session can continue while the remote call completes:
+Use JSON when another tool or agent will parse the result. For agent-driven deep research, default to `search --deep --json --bg` unless the user explicitly needs foreground output. Deep research can run long and network/tool timeouts can interrupt foreground calls; background jobs keep the remote work alive. When the next step depends on completion, use `gptx job wait <job_id>` instead of manual polling. Ordinary search is foreground-oriented and rejects `--bg` unless `--deep` is set. For real image API calls, prefer local background jobs with `--bg` so the session can continue while the remote call completes:
 
 ```sh
 gptx status --json
 gptx search "current GoReleaser GitHub Action recommendations" --deep --json --bg
 gptx image generate "test" --dry-run --n 2 --out-dir /tmp --json
 gptx image generate "test" --n 2 --out-dir /tmp --json --bg
+gptx job wait <job_id>
 gptx image generate "match this design system" --image ./design-system.png --dry-run --out /tmp/ref.png --json
 gptx image generate "match this design system" --image ./design-system.png --out /tmp/ref.png --json --bg
 gptx image edit "remove only the background; keep the product unchanged" --image ./product.png --dry-run --out /tmp/product-cutout.png --json
@@ -42,7 +43,13 @@ For image generation or editing, use `--dry-run --json` first to validate planne
 
 For background jobs, use `GPTX_OPENAI_API_KEY` from the environment. Do not pass explicit `--api-key`; background jobs reject it so secrets are not serialized in job metadata.
 
-Inspect background jobs with the built-in job commands:
+Wait for background jobs with the built-in job command:
+
+```sh
+gptx job wait <job_id>
+```
+
+Use diagnostic commands only when needed:
 
 ```sh
 gptx job status <job_id>

@@ -158,6 +158,7 @@ Help text is product surface. Agents learn this CLI from `--help`.
 - `gptx version` must stay fast and local; use `gptx version check` for explicit network/cache update checks.
 - `gptx update` prints `go install github.com/c-w-xiaohei/gptx/cmd/gptx@latest` plus a local-only GitHub release archive fallback command block where supported; it must not require an API key or perform network calls itself.
 - `gptx job status/result/logs` inspect local background jobs by job ID.
+- `gptx job wait <job_id>` waits for local background jobs to finish and prints the final result; prefer it over manual polling when an agent needs to block for completion.
 - Errors and diagnostics go to stderr and must return non-zero.
 - Missing API key must be visible and actionable.
 - `--dry-run` must not require an API key, call a remote API, upload images, or write files.

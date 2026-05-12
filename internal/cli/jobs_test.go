@@ -23,7 +23,7 @@ func TestJobHelpMentionsSearchImageAndBackgroundMode(t *testing.T) {
 	}
 
 	help := out.String()
-	for _, want := range []string{"job start", "job status", "job result", "job logs", "job cancel", "search", "image generate", "image edit", "--bg"} {
+	for _, want := range []string{"job start", "job wait", "job status", "job result", "job logs", "job cancel", "search", "image generate", "image edit", "--bg"} {
 		if !strings.Contains(help, want) {
 			t.Fatalf("job help missing %q, got %q", want, help)
 		}
@@ -524,6 +524,59 @@ func TestJobListStatusResultLogsAndCancel(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "cancel")); err != nil {
 		t.Fatalf("cancel marker missing: %v", err)
+	}
+}
+
+func TestJobWaitPrintsSucceededResult(t *testing.T) {
+	jobDir := t.TempDir()
+	t.Setenv("GPTX_JOB_DIR", jobDir)
+	jobID := "job_wait_success"
+	dir := filepath.Join(jobDir, jobID)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(dir, "job.json"), `{"id":"job_wait_success","operation":"search","command":["search","q"],"created_at":"2026-05-09T00:00:00Z","stdout_path":"`+filepath.ToSlash(filepath.Join(dir, "stdout.log"))+`","stderr_path":"`+filepath.ToSlash(filepath.Join(dir, "stderr.log"))+`"}`)
+	writeTestFile(t, filepath.Join(dir, "status.json"), `{"id":"job_wait_success","state":"succeeded","operation":"search","exit_code":0}`)
+	writeTestFile(t, filepath.Join(dir, "result.json"), `{"job_id":"job_wait_success","state":"succeeded","output":{"text":"answer"}}`)
+
+	cmd := NewRootCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"job", "wait", jobID})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("job wait should not fail: %v", err)
+	}
+	if !strings.Contains(out.String(), "answer") {
+		t.Fatalf("wait output missing result: %q", out.String())
+	}
+}
+
+func TestJobWaitReturnsErrorForFailedJob(t *testing.T) {
+	jobDir := t.TempDir()
+	t.Setenv("GPTX_JOB_DIR", jobDir)
+	jobID := "job_wait_failed"
+	dir := filepath.Join(jobDir, jobID)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(dir, "job.json"), `{"id":"job_wait_failed","operation":"image.generate","command":["image","generate","p"],"created_at":"2026-05-09T00:00:00Z","stdout_path":"`+filepath.ToSlash(filepath.Join(dir, "stdout.log"))+`","stderr_path":"`+filepath.ToSlash(filepath.Join(dir, "stderr.log"))+`"}`)
+	writeTestFile(t, filepath.Join(dir, "status.json"), `{"id":"job_wait_failed","state":"failed","operation":"image.generate","exit_code":1,"error":"context deadline exceeded"}`)
+	writeTestFile(t, filepath.Join(dir, "result.json"), `{"job_id":"job_wait_failed","state":"failed","error":"context deadline exceeded","exit_code":1}`)
+
+	cmd := NewRootCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"job", "wait", jobID, "--json"})
+
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "context deadline exceeded") {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if !strings.Contains(out.String(), `"state":"failed"`) {
+		t.Fatalf("wait json output missing failed result: %q", out.String())
 	}
 }
 

@@ -66,10 +66,12 @@ Avoid vague deep prompts:
 gptx search "current GoReleaser GitHub Action best practices"
 gptx search "OpenAI Responses web_search examples" --deep --json --bg
 gptx search "OpenAI Responses web_search examples" --deep --model gpt-5.5 --json --bg
-gptx search "incident timeline" --deep --instructions-file ./instructions.txt --json --bg
+gptx search "incident timeline" --deep --instructions-file ./instructions.txt --context ./incident-notes.md --json --bg
 ```
 
 Use `--json` or `--format json` when another tool or agent needs to parse results. Use ordinary foreground search for quick lookups. Use `--deep --json --bg` for normal agent-driven long research so the session can continue while the remote call completes and avoid foreground timeout failures.
+
+Use repeatable `--context <path>` to attach local text files to the query. The CLI reads each file before the API call and appends it with fixed file boundaries in flag order. Missing files fail locally. JSON output includes `context_files`, and `query` contains the final text sent to the API.
 
 ## Behavior
 
@@ -78,6 +80,7 @@ Use `--json` or `--format json` when another tool or agent needs to parse result
 - Deep search uses model default `gpt-5.5`, `reasoning.effort=high`, `web_search.search_context_size=high`, `max_tool_calls=8`, and `max_output_tokens=8000`.
 - If a compatible gateway rejects `max_tool_calls`, deep search retries once without it. JSON output reports `compatibility_fallback`, `compatibility_fallback_reason`, and the effective `max_tool_calls` value.
 - Supports model override via `--model`.
+- Supports repeatable `--context <path>` for local text file context.
 - Enables hosted `web_search`.
 - Sends `store=false`.
 - Uses list-style Responses input items.

@@ -111,10 +111,81 @@ func TestSearchHelpMentionsDeepModeAndBackgroundGating(t *testing.T) {
 	}
 
 	help := out.String()
-	for _, want := range []string{"--deep", "gpt-5.5", "--reasoning-effort", "--search-context-size", "--max-tool-calls", "--max-output-tokens", "--bg is only supported with --deep"} {
+	for _, want := range []string{"--deep", "gpt-5.5", "--context", "context file", "--reasoning-effort", "--search-context-size", "--max-tool-calls", "--max-output-tokens", "--bg is only supported with --deep"} {
 		if !strings.Contains(help, want) {
 			t.Fatalf("search help missing %q, got %q", want, help)
 		}
+	}
+}
+
+func TestSearchContextFilesAppendToInput(t *testing.T) {
+	t.Setenv("GPTX_OPENAI_API_KEY", "secret")
+	dir := t.TempDir()
+	brief := filepath.Join(dir, "brief.md")
+	notes := filepath.Join(dir, "notes.txt")
+	if err := os.WriteFile(brief, []byte("brand brief"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(notes, []byte("launch notes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var body map[string]any
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("event: response.output_text.done\n"))
+		_, _ = w.Write([]byte("data: {\"type\":\"response.output_text.done\",\"text\":\"answer\"}\n\n"))
+	}))
+	defer ts.Close()
+
+	cmd := NewRootCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"--base-url", ts.URL, "search", "query", "--context", brief, "--context", notes, "--json"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("search with context should not fail: %v", err)
+	}
+	input := body["input"].([]any)[0].(map[string]any)["content"].([]any)[0].(map[string]any)["text"].(string)
+	for _, want := range []string{"query", "Additional context files:", "--- BEGIN CONTEXT FILE: " + brief + " ---", "brand brief", "--- END CONTEXT FILE: " + brief + " ---", "--- BEGIN CONTEXT FILE: " + notes + " ---", "launch notes"} {
+		if !strings.Contains(input, want) {
+			t.Fatalf("input missing %q: %q", want, input)
+		}
+	}
+	if strings.Index(input, brief) > strings.Index(input, notes) {
+		t.Fatalf("context files not in flag order: %q", input)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
+		t.Fatalf("decode json: %v\n%s", err, out.String())
+	}
+	files := payload["context_files"].([]any)
+	if len(files) != 2 || files[0] != brief || files[1] != notes {
+		t.Fatalf("context_files = %#v", files)
+	}
+}
+
+func TestSearchContextMissingFileErrorsBeforeAPI(t *testing.T) {
+	t.Setenv("GPTX_OPENAI_API_KEY", "secret")
+	called := false
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"--base-url", ts.URL, "search", "query", "--context", filepath.Join(t.TempDir(), "missing.md")})
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "read context file") {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if called {
+		t.Fatal("API should not be called when context file is missing")
 	}
 }
 
@@ -397,7 +468,7 @@ func TestImageGenerateHelpDocumentsReferenceImages(t *testing.T) {
 		t.Fatalf("help should not fail: %v", err)
 	}
 	help := out.String()
-	for _, want := range []string{"--image", "reference", "/images/edits", "--model", "--background", "--output-compression", "--moderation", "--input-fidelity"} {
+	for _, want := range []string{"--image", "reference", "--context", "context file", "/images/edits", "--model", "--background", "--output-compression", "--moderation", "--input-fidelity"} {
 		if !strings.Contains(help, want) {
 			t.Fatalf("generate help missing %q, got %q", want, help)
 		}
@@ -415,10 +486,83 @@ func TestImageEditHelpIncludesNewFlags(t *testing.T) {
 		t.Fatalf("help should not fail: %v", err)
 	}
 	help := out.String()
-	for _, want := range []string{"--model", "--background", "--output-compression", "--input-fidelity"} {
+	for _, want := range []string{"--context", "context file", "--model", "--background", "--output-compression", "--input-fidelity"} {
 		if !strings.Contains(help, want) {
 			t.Fatalf("edit help missing %q, got %q", want, help)
 		}
+	}
+}
+
+func TestImageGenerateDryRunContextFilesAppendToPrompt(t *testing.T) {
+	t.Setenv("GPTX_OPENAI_API_KEY", "")
+	dir := t.TempDir()
+	brief := filepath.Join(dir, "brand.md")
+	if err := os.WriteFile(brief, []byte("brand tone"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := NewRootCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"image", "generate", "make a poster", "--context", brief, "--dry-run", "--json"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("dry-run with context should not fail: %v", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
+		t.Fatalf("decode json: %v\n%s", err, out.String())
+	}
+	prompt := payload["prompt"].(string)
+	for _, want := range []string{"make a poster", "Additional context files:", "--- BEGIN CONTEXT FILE: " + brief + " ---", "brand tone"} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("prompt missing %q: %q", want, prompt)
+		}
+	}
+	files := payload["context_files"].([]any)
+	if len(files) != 1 || files[0] != brief {
+		t.Fatalf("context_files = %#v", files)
+	}
+}
+
+func TestImageEditDryRunContextFilesAppendToPrompt(t *testing.T) {
+	t.Setenv("GPTX_OPENAI_API_KEY", "")
+	dir := t.TempDir()
+	copyPath := filepath.Join(dir, "copy.md")
+	if err := os.WriteFile(copyPath, []byte("new headline"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := NewRootCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"image", "edit", "revise screen", "--context", copyPath, "--dry-run", "--json"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("dry-run with context should not fail: %v", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
+		t.Fatalf("decode json: %v\n%s", err, out.String())
+	}
+	if prompt := payload["prompt"].(string); !strings.Contains(prompt, "new headline") || !strings.Contains(prompt, copyPath) {
+		t.Fatalf("prompt missing context: %q", prompt)
+	}
+	files := payload["context_files"].([]any)
+	if len(files) != 1 || files[0] != copyPath {
+		t.Fatalf("context_files = %#v", files)
+	}
+}
+
+func TestImageGenerateContextMissingFileErrorsBeforeAPIKey(t *testing.T) {
+	t.Setenv("GPTX_OPENAI_API_KEY", "")
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"image", "generate", "prompt", "--context", filepath.Join(t.TempDir(), "missing.md")})
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "read context file") {
+		t.Fatalf("unexpected err: %v", err)
 	}
 }
 

@@ -377,17 +377,19 @@ func TestSearchBackgroundStoresCommandFlags(t *testing.T) {
 	t.Setenv("GPTX_JOB_TEST_NO_START", "1")
 	instructionsFile := filepath.Join(t.TempDir(), "instructions.txt")
 	writeTestFile(t, instructionsFile, "be concise")
+	contextFile := filepath.Join(t.TempDir(), "context.md")
+	writeTestFile(t, contextFile, "context")
 
 	cmd := NewRootCommand()
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
-	cmd.SetArgs([]string{"search", "query", "--deep", "--model", "custom-model", "--instructions-file", instructionsFile, "--reasoning-effort", "medium", "--search-context-size", "low", "--max-tool-calls", "4", "--max-output-tokens", "2000", "--json", "--bg"})
+	cmd.SetArgs([]string{"search", "query", "--deep", "--model", "custom-model", "--instructions-file", instructionsFile, "--context", contextFile, "--reasoning-effort", "medium", "--search-context-size", "low", "--max-tool-calls", "4", "--max-output-tokens", "2000", "--json", "--bg"})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("search --deep --bg should not fail: %v", err)
 	}
-	for _, want := range []string{"--deep", "--model", "custom-model", "--instructions-file", instructionsFile, "--reasoning-effort", "medium", "--search-context-size", "low", "--max-tool-calls", "4", "--max-output-tokens", "2000", "--json"} {
+	for _, want := range []string{"--deep", "--model", "custom-model", "--instructions-file", instructionsFile, "--context", contextFile, "--reasoning-effort", "medium", "--search-context-size", "low", "--max-tool-calls", "4", "--max-output-tokens", "2000", "--json"} {
 		if !strings.Contains(out.String(), want) {
 			t.Fatalf("stored args missing %q: %s", want, out.String())
 		}
@@ -410,12 +412,14 @@ func TestImageGenerateBackgroundStoresCommandFlags(t *testing.T) {
 	cmd.SetErr(&out)
 	refPath := filepath.Join(outDir, "ref.png")
 	writePNGFile(t, refPath, image.NewNRGBA(image.Rect(0, 0, 2, 2)))
-	cmd.SetArgs([]string{"image", "generate", "prompt", "--image", refPath, "--n", "2", "--out-dir", outDir, "--create-dirs", "--output-format", "webp", "--json", "--bg"})
+	contextFile := filepath.Join(t.TempDir(), "brand.md")
+	writeTestFile(t, contextFile, "brand")
+	cmd.SetArgs([]string{"image", "generate", "prompt", "--image", refPath, "--context", contextFile, "--n", "2", "--out-dir", outDir, "--create-dirs", "--output-format", "webp", "--json", "--bg"})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("image generate --bg should not fail: %v", err)
 	}
-	for _, want := range []string{"--image", refPath, "--n", "2", "--out-dir", outDir, "--create-dirs", "--output-format", "webp", "--json"} {
+	for _, want := range []string{"--image", refPath, "--context", contextFile, "--n", "2", "--out-dir", outDir, "--create-dirs", "--output-format", "webp", "--json"} {
 		if !strings.Contains(out.String(), want) {
 			t.Fatalf("stored args missing %q: %s", want, out.String())
 		}

@@ -160,13 +160,15 @@ Some OpenAI-compatible gateways reject `max_tool_calls`. In that case, deep sear
 
 Ordinary search stays foreground-oriented for quick lookups. `--bg` is only valid with `--deep` for search.
 
+Use repeatable `--context <path>` to append local text files to the search query with fixed file boundaries. Context files are read before the API call; missing files fail locally.
+
 Examples:
 
 ```bash
 gptx search "latest updates on OpenAI Responses API"
 gptx search "latest updates on OpenAI Responses API" --model gpt-5.4-mini
 gptx search "best practices for OpenAI Responses prompts" --deep --bg
-gptx search "incident timeline" --deep --instructions-file ./instructions.txt --json --bg
+gptx search "incident timeline" --deep --instructions-file ./instructions.txt --context ./notes.md --json --bg
 ```
 
 Use `--deep --bg` for normal agent-driven long research queries. The command prints a local job ID; wait for completion with `gptx job wait <job_id>`. Use `gptx job status <job_id>`, `gptx job result <job_id>`, and `gptx job logs <job_id> --stderr` when you need diagnostics.
@@ -190,6 +192,9 @@ Common output flags and rules:
 - `--create-dirs` creates missing output directories
 - `--dry-run` plans and validates outputs without API calls, uploads, or file writes
 - `--bg` runs a real image command as a local background job and prints a job ID
+- `--context` appends a local text file to the image prompt with fixed file boundaries; repeat it for multiple files
+
+SVG files are not uploaded as `--image` attachments. For logo SVG use cases, pass the SVG source as text context with `--context ./logo.svg`, or rasterize it to PNG/WebP first and pass the raster file with `--image`.
 
 Default generate filename template:
 
@@ -221,11 +226,15 @@ Examples:
 ```bash
 gptx image generate "minimal logo concept" --dry-run --out ./logo.png --json
 gptx image generate "minimal logo concept" --out ./logo.png --bg
+gptx image generate "create a brand card using this logo direction" --dry-run --context ./logo.svg --out ./logo-card.png --json
+gptx image generate "create a brand card using this logo direction" --context ./logo.svg --out ./logo-card.png --bg
 gptx image generate "an isometric city" --dry-run --n 3 --out-dir ./out --create-dirs --json
 gptx image generate "an isometric city" --n 3 --out-dir ./out --create-dirs --bg
 gptx image generate "poster" --size 1536x1024 --quality high --output-format webp --output-compression 80 --json --bg
 gptx image edit "remove background" --dry-run --image ./in.png --out ./edited.png --json
 gptx image edit "remove background" --image ./in.png --out ./edited.png --bg
+gptx image edit "apply this logo guidance" --dry-run --image ./screen.png --context ./logo.svg --out ./edited.png --json
+gptx image edit "apply this logo guidance" --image ./screen.png --context ./logo.svg --out ./edited.png --bg
 gptx image edit "replace sky" --image ./in.png --mask ./mask.png --n 2 --out-dir ./edits --bg
 gptx image edit "merge style" --image ./a.png --image ./b.png --output-format png --json --bg
 ```
@@ -264,7 +273,7 @@ Enable structured output with either:
 - global `--json` or `--format json`
 - command `--json`
 
-In JSON mode, image commands emit one object including output paths and metadata; search emits one object including query and answer text.
+In JSON mode, image commands emit one object including output paths and metadata; search emits one object including query and answer text. Commands that use `--context` include `context_files` with the referenced paths, and the `query` or `prompt` field contains the final text sent to the API.
 
 ## Friends
 

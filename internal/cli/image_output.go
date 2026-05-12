@@ -18,6 +18,7 @@ type imageOutputJSON struct {
 	Command           string   `json:"command"`
 	Model             string   `json:"model"`
 	Prompt            string   `json:"prompt"`
+	ContextFiles      []string `json:"context_files,omitempty"`
 	Count             int      `json:"count"`
 	Paths             []string `json:"paths"`
 	OutputFormat      string   `json:"output_format"`

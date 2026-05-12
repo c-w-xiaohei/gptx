@@ -2,7 +2,7 @@
 
 Use these copy-ready prompt recipes as starting points for `gptx image generate` and `gptx image edit`. Adapt them to the user's request. Do not add every detail to every prompt.
 
-All command examples use `--dry-run --json` first. For the real call, remove `--dry-run` after checking planned paths, and add `--bg` for normal or long image API runs so the session can continue while the job completes. Use `gptx job wait <job_id>` when the next step depends on the saved output. Do not combine `--dry-run` and `--bg`.
+All command examples use `--dry-run --json` first. For the real call, remove `--dry-run` after checking planned paths, and add `--bg` for normal or long image API runs so the session can continue while the job completes. Use `gptx job wait <job_id>` when the next step depends on the saved output. Use repeatable `--context <path>` for text briefs, copy, requirements, and SVG source such as logo files. SVG is not a supported `--image` upload unless rasterized to PNG/WebP first. Do not combine `--dry-run` and `--bg`.
 
 ## Generation Recipes
 

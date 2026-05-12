@@ -14,6 +14,7 @@ type searchOptions struct {
 	Model             string
 	Instructions      string
 	InstructionsFile  string
+	ContextFiles      []string
 	JSON              bool
 	NoStream          bool
 	BackgroundJob     bool
@@ -46,6 +47,7 @@ Deep search:
 
 Notes:
   - Streaming is enabled by default; --no-stream is accepted for compatibility but currently has no effect.
+  - Use repeatable --context to append text files to the query with fixed file boundaries.
 
 Run guidance:
   - Ordinary search remains foreground-oriented for quick lookups.
@@ -53,7 +55,7 @@ Run guidance:
 		Example: `  gptx search "golang cobra cli examples"
   gptx search "best practices for OpenAI responses prompts" --deep --bg
   gptx search "summarize this topic" --instructions "Be concise." --json
-  gptx search "incident timeline" --deep --instructions-file ./instructions.txt --json --bg`,
+  gptx search "incident timeline" --deep --instructions-file ./instructions.txt --context ./notes.md --json --bg`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if opts.Instructions != "" && opts.InstructionsFile != "" {
@@ -85,6 +87,10 @@ Run guidance:
 				}
 				instructions = string(b)
 			}
+			input, err := promptWithContextFiles(args[0], opts.ContextFiles)
+			if err != nil {
+				return err
+			}
 
 			client := openaiapi.NewClient(resolvedRoot.BaseURL, resolvedRoot.APIKey, nil)
 			ctx, cancel := context.WithTimeout(context.Background(), resolvedRoot.Timeout)
@@ -93,7 +99,7 @@ Run guidance:
 			res, err := client.Search(ctx, openaiapi.SearchRequest{
 				Model:             searchModel(opts),
 				Instructions:      instructions,
-				Input:             args[0],
+				Input:             input,
 				Deep:              opts.Deep,
 				ReasoningEffort:   opts.ReasoningEffort,
 				SearchContextSize: opts.SearchContextSize,
@@ -113,8 +119,11 @@ Run guidance:
 					"search_context_size": res.SearchContextSize,
 					"max_tool_calls":      res.MaxToolCalls,
 					"max_output_tokens":   res.MaxOutputTokens,
-					"query":               args[0],
+					"query":               input,
 					"text":                res.Text,
+				}
+				if len(opts.ContextFiles) > 0 {
+					payload["context_files"] = opts.ContextFiles
 				}
 				if res.CompatibilityFallback {
 					payload["compatibility_fallback"] = true
@@ -131,6 +140,7 @@ Run guidance:
 	cmd.Flags().StringVar(&opts.Model, "model", "", "Responses model (default gpt-5.4-mini; gpt-5.5 with --deep)")
 	cmd.Flags().StringVar(&opts.Instructions, "instructions", "", "override default search instructions")
 	cmd.Flags().StringVar(&opts.InstructionsFile, "instructions-file", "", "load instructions from a file")
+	cmd.Flags().StringArrayVar(&opts.ContextFiles, "context", nil, "text context file path to append to the query (repeatable)")
 	cmd.Flags().BoolVar(&opts.NoStream, "no-stream", false, "accepted for compatibility; currently no effect")
 	cmd.Flags().BoolVar(&opts.JSON, "json", false, "emit JSON output")
 	cmd.Flags().BoolVar(&opts.BackgroundJob, "bg", false, "run deep search as a local background job and print a job ID")

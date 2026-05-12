@@ -23,6 +23,7 @@ type imageOptions struct {
 	CompressionSet    bool
 	Overwrite         bool
 	CreateDirs        bool
+	ContextFiles      []string
 	DryRun            bool
 	JSON              bool
 	BackgroundJob     bool
@@ -69,10 +70,12 @@ Output naming:
 
 Run guidance:
   - First use --dry-run --json in the foreground to validate paths without API calls, uploads, or writes.
+  - Use repeatable --context to append text files such as briefs, copy, or SVG source as prompt context.
   - For real image API calls, prefer --bg so long generation runs can continue as local background jobs.`,
 		Example: `  gptx image generate "an isometric city" --n 3 --out-dir ./out
   gptx image generate "brand icon" --dry-run --out ./icon.png --json
   gptx image generate "brand icon" --out ./icon.png --bg
+  gptx image generate "use this logo direction" --context ./logo.svg --out ./logo-card.png --bg
   gptx image generate "match this design system" --image ./design-system.png --out ./screen.png --bg
   gptx image generate "poster" --size 1536x1024 --quality high --output-format webp --json --bg`,
 		Args: cobra.ExactArgs(1),
@@ -83,6 +86,10 @@ Run guidance:
 				return errors.New("--dry-run and --bg cannot be used together; run dry-run in the foreground, then remove --dry-run and use --bg for the real call")
 			}
 			opts.imageOptions = opts.imageOptions.imageDefaults()
+			prompt, err := promptWithContextFiles(args[0], opts.ContextFiles)
+			if err != nil {
+				return err
+			}
 			resolvedRoot, err := resolveRootOptions(root, !opts.DryRun)
 			if err != nil {
 				return err
@@ -110,7 +117,8 @@ Run guidance:
 				return writeImageOutput(cmd, jsonOut, imageOutputJSON{
 					Command:           "image generate",
 					Model:             opts.Model,
-					Prompt:            args[0],
+					Prompt:            prompt,
+					ContextFiles:      opts.ContextFiles,
 					Count:             len(paths),
 					Paths:             paths,
 					OutputFormat:      opts.OutputFormat,
@@ -144,7 +152,7 @@ Run guidance:
 				compression := intPtrIfSet(opts.OutputCompression)
 				res, err = client.EditImage(ctx, openaiapi.EditImageRequest{
 					Model:             opts.Model,
-					Prompt:            args[0],
+					Prompt:            prompt,
 					Images:            opts.Images,
 					Size:              opts.Size,
 					Quality:           opts.Quality,
@@ -158,7 +166,7 @@ Run guidance:
 				compression := intPtrIfSet(opts.OutputCompression)
 				res, err = client.GenerateImage(ctx, openaiapi.ImageRequest{
 					Model:             opts.Model,
-					Prompt:            args[0],
+					Prompt:            prompt,
 					Size:              opts.Size,
 					Quality:           opts.Quality,
 					N:                 opts.N,
@@ -180,7 +188,8 @@ Run guidance:
 			return writeImageOutput(cmd, jsonOut, imageOutputJSON{
 				Command:           "image generate",
 				Model:             opts.Model,
-				Prompt:            args[0],
+				Prompt:            prompt,
+				ContextFiles:      opts.ContextFiles,
 				Count:             len(saved),
 				Paths:             saved,
 				OutputFormat:      opts.OutputFormat,
@@ -218,10 +227,12 @@ Output naming:
 
 Run guidance:
   - First use --dry-run --json in the foreground to validate paths and inputs without API calls, uploads, or writes.
+  - Use repeatable --context to append text files such as briefs, copy, or SVG source as prompt context.
   - For real image API calls, prefer --bg so long edit runs can continue as local background jobs.`,
 		Example: `  gptx image edit "remove background" --image ./in.png --out ./out.png
   gptx image edit "remove background" --dry-run --image ./in.png --out ./out.png --json
   gptx image edit "remove background" --image ./in.png --out ./out.png --bg
+  gptx image edit "apply this logo guidance" --image ./screen.png --context ./logo.svg --out ./out.png --bg
   gptx image edit "replace sky" --image ./in.png --mask ./mask.png --n 2 --out-dir ./edits --bg
   gptx image edit "merge style" --image ./a.png --image ./b.png --output-format png --json --bg`,
 		Args: cobra.ExactArgs(1),
@@ -232,6 +243,10 @@ Run guidance:
 				return errors.New("--dry-run and --bg cannot be used together; run dry-run in the foreground, then remove --dry-run and use --bg for the real call")
 			}
 			opts.imageOptions = opts.imageOptions.imageDefaults()
+			prompt, err := promptWithContextFiles(args[0], opts.ContextFiles)
+			if err != nil {
+				return err
+			}
 			resolvedRoot, err := resolveRootOptions(root, !opts.DryRun)
 			if err != nil {
 				return err
@@ -262,7 +277,8 @@ Run guidance:
 				return writeImageOutput(cmd, jsonOut, imageOutputJSON{
 					Command:           "image edit",
 					Model:             opts.Model,
-					Prompt:            args[0],
+					Prompt:            prompt,
+					ContextFiles:      opts.ContextFiles,
 					Count:             len(paths),
 					Paths:             paths,
 					OutputFormat:      opts.OutputFormat,
@@ -293,7 +309,7 @@ Run guidance:
 			compression := intPtrIfSet(opts.OutputCompression)
 			res, err := client.EditImage(ctx, openaiapi.EditImageRequest{
 				Model:             opts.Model,
-				Prompt:            args[0],
+				Prompt:            prompt,
 				Images:            opts.Images,
 				Mask:              opts.Mask,
 				Size:              opts.Size,
@@ -316,7 +332,8 @@ Run guidance:
 			return writeImageOutput(cmd, jsonOut, imageOutputJSON{
 				Command:           "image edit",
 				Model:             opts.Model,
-				Prompt:            args[0],
+				Prompt:            prompt,
+				ContextFiles:      opts.ContextFiles,
 				Count:             len(saved),
 				Paths:             saved,
 				OutputFormat:      opts.OutputFormat,
@@ -353,6 +370,7 @@ func bindImageFlags(cmd *cobra.Command, opts *imageOptions) {
 	}
 	cmd.Flags().BoolVar(&opts.Overwrite, "overwrite", false, "overwrite existing files")
 	cmd.Flags().BoolVar(&opts.CreateDirs, "create-dirs", false, "create output directories if missing")
+	cmd.Flags().StringArrayVar(&opts.ContextFiles, "context", nil, "text context file path to append to the prompt (repeatable)")
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "compute output paths without writing files")
 	cmd.Flags().BoolVar(&opts.JSON, "json", false, "emit JSON output")
 	cmd.Flags().BoolVar(&opts.BackgroundJob, "bg", false, "run as a local background job and print a job ID")

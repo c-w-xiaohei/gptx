@@ -58,6 +58,7 @@ Run dry-run image commands without an API key:
 ```bash
 go run ./cmd/gptx image generate "test icon" --dry-run --out-dir /tmp
 go run ./cmd/gptx --format json image edit "remove background" --dry-run --out /tmp/edit.png
+go run ./cmd/gptx image generate "use this logo direction" --dry-run --context ./logo.svg --out /tmp/logo-card.png --json
 ```
 
 Run a real API command only when `GPTX_OPENAI_API_KEY` is intentionally set:
@@ -121,6 +122,7 @@ Search requirements:
 - Deep search defaults: model `gpt-5.5`, `reasoning.effort=high`, `web_search.search_context_size=high`, `max_tool_calls=8`, and `max_output_tokens=8000`.
 - If an OpenAI-compatible gateway rejects `max_tool_calls`, retry deep search exactly once without `max_tool_calls` and report the effective compatibility fallback in JSON output.
 - Must support model override via `gptx search --model`.
+- `--context <path>` is repeatable and appends local text files to the search input with fixed file boundaries; missing files fail before API calls.
 - Tool: `web_search`, not `web_search_preview`.
 - Input shape: list-style Responses input item, not plain string.
 - `store=false` must be set.
@@ -139,6 +141,8 @@ Image edit requirements:
 - Default model: `gpt-image-2`.
 - `--image` is repeatable for real edit calls.
 - `--mask` is optional.
+- `--context <path>` is repeatable for image generate/edit and appends local text files to the prompt with fixed file boundaries.
+- SVG files are not `--image` attachments; pass SVG source with `--context ./logo.svg` or rasterize to PNG/WebP before using `--image`.
 - Support multiple returned images.
 - Validate planned output paths before paid/remote API calls.
 
@@ -147,6 +151,7 @@ Image edit requirements:
 Help text is product surface. Agents learn this CLI from `--help`.
 
 - Document endpoint mapping, defaults, env vars, file saving, JSON mode, and examples in help text.
+- Document `--context` on search and image commands, including repeatable file semantics and SVG logo guidance.
 - Keep examples copy-pasteable and shell-safe.
 - Do not mention MCP, server transports, or remote MCP URLs in user-facing help/docs.
 - Prefer task-oriented commands over raw endpoint names.

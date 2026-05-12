@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/c-w-xiaohei/gptx/internal/openaiapi"
 )
@@ -63,6 +64,21 @@ func TestRootHelpEmphasizesFeaturesOverAPIWrapping(t *testing.T) {
 	}
 	if strings.Contains(cmd.Short, "APIs") {
 		t.Fatalf("short help should emphasize user-facing features, got %q", cmd.Short)
+	}
+}
+
+func TestDefaultTimeoutIsTwentyMinutes(t *testing.T) {
+	if defaultTimeout != 20*time.Minute {
+		t.Fatalf("defaultTimeout = %s, want 20m", defaultTimeout)
+	}
+
+	cmd := NewRootCommand()
+	flag := cmd.PersistentFlags().Lookup("timeout")
+	if flag == nil {
+		t.Fatal("timeout flag missing")
+	}
+	if flag.DefValue != "20m0s" {
+		t.Fatalf("timeout default = %q, want 20m0s", flag.DefValue)
 	}
 }
 

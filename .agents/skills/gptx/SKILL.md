@@ -10,7 +10,7 @@ Use `gptx` for deterministic OpenAI-compatible search, research, image generatio
 
 Prefer `gptx` when a task needs predictable CLI behavior, stable text/JSON output, saved image files, or direct API-style tool use from another agent. Do not treat it as an agent runtime.
 
-For image tasks, read `references/image.md` before running a real image command. It contains the decision tree, prompt-shaping workflow, edit invariants, dry-run gate, and output safety rules adapted from high-quality GPT image-generation skills.
+For image tasks, read `references/image.md` before running a real image command. It contains the decision tree, prompt-shaping workflow, edit invariants, dry-run gate, and output safety rules adapted from high-quality GPT image-generation skills. For slow or high-quality image jobs, also read `references/image-latency.md` to plan `--timeout`, `--quality`, `--size`, reference-image use, and `--bg`.
 
 ## Minimal Workflow
 
@@ -38,7 +38,7 @@ gptx image edit "remove only the background; keep the product unchanged" --image
 
 Write deep research queries as self-contained, high-fidelity research briefs. Assume the search tool does not know the surrounding chat, repo, prior findings, user intent, acronyms, or hidden constraints. Include the exact question, important spelling variants, entities, timeframe, scope boundaries, required source quality, desired output format, and what to separate or verify. Do not pass vague prompts such as `research this` or `find sources`; preserve the user's actual investigation target in the command string.
 
-For image generation or editing, use `--dry-run --json` first to validate planned output paths before paid API calls. For the real call, remove `--dry-run` and add `--bg` unless the user explicitly needs foreground output. Do not combine `--dry-run` and `--bg`. Do not print raw image base64 or ask the user to paste API keys into chat.
+For image generation or editing, use `--dry-run --json` first to validate planned output paths before paid API calls. For the real call, remove `--dry-run` and add `--bg` unless the user explicitly needs foreground output. High-quality, non-square, reference-image, edit, UI screenshot, and multi-image jobs can take many minutes; use the 20-minute default timeout or raise it explicitly with root `--timeout` for heavy jobs. Do not combine `--dry-run` and `--bg`. Do not print raw image base64 or ask the user to paste API keys into chat.
 
 For background jobs, use `GPTX_OPENAI_API_KEY` from the environment. Do not pass explicit `--api-key`; background jobs reject it so secrets are not serialized in job metadata.
 
@@ -58,5 +58,6 @@ These examples have been verified in this project: `gptx version`, `gptx version
 - `references/configure.md` - Public install/update, configuration, OpenAI-compatible base URL override, status checks, and troubleshooting.
 - `references/search.md` - Research workflow, repeated/parallel search strategy, JSON output, and citation behavior.
 - `references/image.md` - Image command decision tree, output planning, dry-run gate, and file safety.
+- `references/image-latency.md` - Evidence-backed image latency factors, timeout defaults, and planning guidance for quality, size, `n`, and reference-image workflows.
 - `references/image-prompting.md` - High-quality GPT image prompt structure, specificity, invariants, references, transparency, and iteration.
 - `references/image-recipes.md` - Copy-ready generation, reference-image generation, editing, and multi-asset prompt recipes for `gptx`.

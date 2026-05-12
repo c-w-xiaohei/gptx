@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	defaultTimeout = 600 * time.Second
+	defaultTimeout = 20 * time.Minute
 	defaultFormat  = "text"
 )
 
@@ -72,7 +72,7 @@ Implementation notes:
 
 	cmd.PersistentFlags().StringVar(&root.BaseURL, "base-url", "", "API base URL (env: GPTX_OPENAI_BASE_URL)")
 	cmd.PersistentFlags().StringVar(&root.APIKey, "api-key", "", "API key (env: GPTX_OPENAI_API_KEY)")
-	cmd.PersistentFlags().DurationVar(&root.Timeout, "timeout", defaultTimeout, "HTTP timeout (e.g. 30s, 2m, 10m)")
+	cmd.PersistentFlags().DurationVar(&root.Timeout, "timeout", defaultTimeout, "HTTP timeout (e.g. 30s, 2m, 20m)")
 	cmd.PersistentFlags().StringVar(&root.Format, "format", defaultFormat, "output format: text or json")
 	cmd.PersistentFlags().BoolVar(&root.JSON, "json", false, "shortcut for --format json")
 

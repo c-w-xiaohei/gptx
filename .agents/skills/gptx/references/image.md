@@ -12,6 +12,7 @@ This workflow adapts the strongest parts of OpenAI-style imagegen skills to `gpt
 - Use `gptx image edit --mask` for explicit masked edits or inpainting workflows.
 - Run `--dry-run --json` before a real image call unless the user only asked for command help.
 - After a successful dry run, use `--bg` for normal or long real image generation/editing runs so the session can continue while the remote image API call completes.
+- Plan timeout based on image workload. High `--quality`, non-square `--size`, `--n > 1`, reference images, masks, edits, and dense UI/screenshot prompts can take many minutes. Read `references/image-latency.md` when choosing timeout or diagnosing slow jobs.
 - Do not overwrite files unless the user explicitly asks for replacement; otherwise choose a versioned filename.
 - Do not ask the user to paste API keys in chat. Ask them to configure `GPTX_OPENAI_API_KEY` locally.
 - Do not print raw base64. `gptx` saves decoded images and prints paths or JSON metadata.
@@ -186,6 +187,7 @@ Size and quality guidance:
 - Default `1024x1024` and `quality low` are suitable for drafts.
 - Use `quality high` for final assets, dense text, product shots, identity-sensitive edits, and polished marketing visuals.
 - Choose landscape sizes for hero images and banners, portrait sizes for stories/posters, and square sizes for icons, thumbnails, or fast drafts.
+- Treat `quality high`, `1536x1024`, `1024x1536`, reference images, masks, and UI screenshot comps as long-running jobs. Use `--bg`; use `gptx --timeout 30m ...` for unusually heavy runs.
 
 ## Transparent And Background Work
 

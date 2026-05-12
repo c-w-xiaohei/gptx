@@ -32,8 +32,8 @@ gptx search "summarize this incident" --context ./incident.md --deep --json --bg
 gptx image generate "test" --dry-run --n 2 --out-dir /tmp --json
 gptx image generate "test" --n 2 --out-dir /tmp --json --bg
 gptx job wait <job_id>
-gptx image generate "use this logo direction" --context ./logo.svg --dry-run --out /tmp/logo-card.png --json
-gptx image generate "use this logo direction" --context ./logo.svg --out /tmp/logo-card.png --json --bg
+gptx image generate "use this campaign brief" --context ./brief.md --dry-run --out /tmp/campaign-card.png --json
+gptx image generate "use this campaign brief" --context ./brief.md --out /tmp/campaign-card.png --json --bg
 gptx image generate "match this design system" --image ./design-system.png --dry-run --out /tmp/ref.png --json
 gptx image generate "match this design system" --image ./design-system.png --out /tmp/ref.png --json --bg
 gptx image edit "remove only the background; keep the product unchanged" --image ./product.png --dry-run --out /tmp/product-cutout.png --json
@@ -42,7 +42,7 @@ gptx image edit "remove only the background; keep the product unchanged" --image
 
 Write deep research queries as self-contained, high-fidelity research briefs. Assume the search tool does not know the surrounding chat, repo, prior findings, user intent, acronyms, or hidden constraints. Include the exact question, important spelling variants, entities, timeframe, scope boundaries, required source quality, desired output format, and what to separate or verify. Do not pass vague prompts such as `research this` or `find sources`; preserve the user's actual investigation target in the command string.
 
-Use repeatable `--context <path>` when the prompt/query needs local text files attached. `--context` only accepts file paths; the CLI reads them and appends their contents with fixed file boundaries before the API call. For SVG logo source, prefer `--context ./logo.svg`; SVG is not a supported `--image` upload unless it has been rasterized to PNG/WebP first.
+Use repeatable `--context <path>` when the prompt/query needs local text files attached. `--context` only accepts file paths; the CLI reads them and appends their contents with fixed file boundaries before the API call. SVG files are not supported by `--context` or `--image`; rasterize SVG logos to PNG/WebP before using them as `--image` references.
 
 For image generation or editing, use `--dry-run --json` first to validate planned output paths before paid API calls. For the real call, remove `--dry-run` and add `--bg` unless the user explicitly needs foreground output. High-quality, non-square, reference-image, edit, UI screenshot, and multi-image jobs can take many minutes; use the 20-minute default timeout or raise it explicitly with root `--timeout` for heavy jobs. Do not combine `--dry-run` and `--bg`. Do not print raw image base64 or ask the user to paste API keys into chat.
 

@@ -566,6 +566,19 @@ func TestImageGenerateContextMissingFileErrorsBeforeAPIKey(t *testing.T) {
 	}
 }
 
+func TestContextRejectsSVGFiles(t *testing.T) {
+	dir := t.TempDir()
+	svgPath := filepath.Join(dir, "logo.svg")
+	if err := os.WriteFile(svgPath, []byte(`<svg xmlns="http://www.w3.org/2000/svg"></svg>`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := promptWithContextFiles("prompt", []string{svgPath})
+	if err == nil || !strings.Contains(err.Error(), "SVG files are not supported with --context") {
+		t.Fatalf("unexpected err: %v", err)
+	}
+}
+
 func TestImageGenerateWithReferenceImageUsesEditEndpoint(t *testing.T) {
 	tmpDir := t.TempDir()
 	imagePath := filepath.Join(tmpDir, "design-system.png")

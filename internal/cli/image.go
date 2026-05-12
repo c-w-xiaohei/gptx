@@ -70,12 +70,12 @@ Output naming:
 
 Run guidance:
   - First use --dry-run --json in the foreground to validate paths without API calls, uploads, or writes.
-  - Use repeatable --context to append text files such as briefs, copy, or SVG source as prompt context.
+  - Use repeatable --context to append text files such as briefs, copy, or requirements as prompt context.
   - For real image API calls, prefer --bg so long generation runs can continue as local background jobs.`,
 		Example: `  gptx image generate "an isometric city" --n 3 --out-dir ./out
   gptx image generate "brand icon" --dry-run --out ./icon.png --json
   gptx image generate "brand icon" --out ./icon.png --bg
-  gptx image generate "use this logo direction" --context ./logo.svg --out ./logo-card.png --bg
+  gptx image generate "use this campaign brief" --context ./brief.md --out ./campaign-card.png --bg
   gptx image generate "match this design system" --image ./design-system.png --out ./screen.png --bg
   gptx image generate "poster" --size 1536x1024 --quality high --output-format webp --json --bg`,
 		Args: cobra.ExactArgs(1),
@@ -227,12 +227,12 @@ Output naming:
 
 Run guidance:
   - First use --dry-run --json in the foreground to validate paths and inputs without API calls, uploads, or writes.
-  - Use repeatable --context to append text files such as briefs, copy, or SVG source as prompt context.
+  - Use repeatable --context to append text files such as briefs, copy, or requirements as prompt context.
   - For real image API calls, prefer --bg so long edit runs can continue as local background jobs.`,
 		Example: `  gptx image edit "remove background" --image ./in.png --out ./out.png
   gptx image edit "remove background" --dry-run --image ./in.png --out ./out.png --json
   gptx image edit "remove background" --image ./in.png --out ./out.png --bg
-  gptx image edit "apply this logo guidance" --image ./screen.png --context ./logo.svg --out ./out.png --bg
+  gptx image edit "apply this copy guidance" --image ./screen.png --context ./copy.md --out ./out.png --bg
   gptx image edit "replace sky" --image ./in.png --mask ./mask.png --n 2 --out-dir ./edits --bg
   gptx image edit "merge style" --image ./a.png --image ./b.png --output-format png --json --bg`,
 		Args: cobra.ExactArgs(1),

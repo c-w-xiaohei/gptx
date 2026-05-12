@@ -194,7 +194,7 @@ Common output flags and rules:
 - `--bg` runs a real image command as a local background job and prints a job ID
 - `--context` appends a local text file to the image prompt with fixed file boundaries; repeat it for multiple files
 
-SVG files are not uploaded as `--image` attachments. For logo SVG use cases, pass the SVG source as text context with `--context ./logo.svg`, or rasterize it to PNG/WebP first and pass the raster file with `--image`.
+SVG files are not supported by `--context` or `--image`. For logo use cases, rasterize the SVG to PNG/WebP first and pass the raster file with `--image`.
 
 Default generate filename template:
 
@@ -226,15 +226,15 @@ Examples:
 ```bash
 gptx image generate "minimal logo concept" --dry-run --out ./logo.png --json
 gptx image generate "minimal logo concept" --out ./logo.png --bg
-gptx image generate "create a brand card using this logo direction" --dry-run --context ./logo.svg --out ./logo-card.png --json
-gptx image generate "create a brand card using this logo direction" --context ./logo.svg --out ./logo-card.png --bg
+gptx image generate "create a brand card using this campaign brief" --dry-run --context ./brief.md --out ./brand-card.png --json
+gptx image generate "create a brand card using this campaign brief" --context ./brief.md --out ./brand-card.png --bg
 gptx image generate "an isometric city" --dry-run --n 3 --out-dir ./out --create-dirs --json
 gptx image generate "an isometric city" --n 3 --out-dir ./out --create-dirs --bg
 gptx image generate "poster" --size 1536x1024 --quality high --output-format webp --output-compression 80 --json --bg
 gptx image edit "remove background" --dry-run --image ./in.png --out ./edited.png --json
 gptx image edit "remove background" --image ./in.png --out ./edited.png --bg
-gptx image edit "apply this logo guidance" --dry-run --image ./screen.png --context ./logo.svg --out ./edited.png --json
-gptx image edit "apply this logo guidance" --image ./screen.png --context ./logo.svg --out ./edited.png --bg
+gptx image edit "apply this copy guidance" --dry-run --image ./screen.png --context ./copy.md --out ./edited.png --json
+gptx image edit "apply this copy guidance" --image ./screen.png --context ./copy.md --out ./edited.png --bg
 gptx image edit "replace sky" --image ./in.png --mask ./mask.png --n 2 --out-dir ./edits --bg
 gptx image edit "merge style" --image ./a.png --image ./b.png --output-format png --json --bg
 ```

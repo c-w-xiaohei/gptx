@@ -10,7 +10,7 @@ This workflow adapts the strongest parts of OpenAI-style imagegen skills to `gpt
 - Use `gptx image generate --image` when images are references for style, layout, brand, mood, subject, or composition.
 - Use `gptx image edit --image` when the user asks to modify an existing image while preserving parts of it.
 - Use `gptx image edit --mask` for explicit masked edits or inpainting workflows.
-- Use repeatable `--context <path>` when text files should guide the image prompt, including briefs, copy decks, requirements, or SVG source.
+- Use repeatable `--context <path>` when text files should guide the image prompt, including briefs, copy decks, or requirements.
 - Run `--dry-run --json` before a real image call unless the user only asked for command help.
 - After a successful dry run, use `--bg` for normal or long real image generation/editing runs so the session can continue while the remote image API call completes.
 - Plan timeout based on image workload. High `--quality`, non-square `--size`, `--n > 1`, reference images, masks, edits, and dense UI/screenshot prompts can take many minutes. Read `references/image-latency.md` when choosing timeout or diagnosing slow jobs.
@@ -27,7 +27,7 @@ Classify intent before choosing the command:
 2. If the user supplies image files only to guide style, brand, composition, color, layout, or mood, use `image generate --image`. This is user-intent generation even though `gptx` uses `/images/edits` internally for reference attachments.
 3. If the user wants to change a specific existing image while keeping some parts intact, use `image edit --image`.
 4. If the user provides or requests a mask, use `image edit --mask`.
-5. If the user supplies SVG logo/source files as guidance, pass them with `--context ./logo.svg`; do not upload SVG through `--image` unless it has been rasterized to PNG/WebP first.
+5. If the user supplies SVG logo/source files as guidance, rasterize them to PNG/WebP before using them as `--image` references. Do not pass SVG through `--context` or `--image`.
 6. If the asset should be SVG/vector/code-native or must match an existing vector icon system, edit the source asset directly instead of generating a bitmap.
 
 For many distinct assets, run separate prompts. Use `--n` for variants of one prompt, not for unrelated assets.
@@ -66,8 +66,8 @@ Keep prompt augmentation restrained. If the user's prompt is already specific, n
 ```sh
 gptx image generate "minimal logo concept" --dry-run --out ./logo.png --json
 gptx image generate "minimal logo concept" --out ./logo.png --json --bg
-gptx image generate "create a brand card using this logo direction" --dry-run --context ./logo.svg --out ./logo-card.png --json
-gptx image generate "create a brand card using this logo direction" --context ./logo.svg --out ./logo-card.png --json --bg
+gptx image generate "create a brand card using this campaign brief" --dry-run --context ./brief.md --out ./brand-card.png --json
+gptx image generate "create a brand card using this campaign brief" --context ./brief.md --out ./brand-card.png --json --bg
 gptx image generate "create an empty state illustration matching this design system" --dry-run --image ./design-system.png --out ./empty-state.png --json
 gptx image generate "create an empty state illustration matching this design system" --image ./design-system.png --out ./empty-state.png --json --bg
 gptx image generate "make a product hero image in this visual style" --dry-run --image ./brand.png --image ./components.png --out ./hero.png --json
@@ -102,8 +102,8 @@ Reference-image generation rules:
 ```sh
 gptx image edit "remove background" --dry-run --image ./in.png --out ./out.png --json
 gptx image edit "remove background" --image ./in.png --out ./out.png --json --bg
-gptx image edit "apply this logo guidance" --dry-run --image ./screen.png --context ./logo.svg --out ./out.png --json
-gptx image edit "apply this logo guidance" --image ./screen.png --context ./logo.svg --out ./out.png --json --bg
+gptx image edit "apply this copy guidance" --dry-run --image ./screen.png --context ./copy.md --out ./out.png --json
+gptx image edit "apply this copy guidance" --image ./screen.png --context ./copy.md --out ./out.png --json --bg
 gptx image edit "replace sky" --dry-run --image ./in.png --mask ./mask.png --n 2 --out-dir ./edits --json
 gptx image edit "replace sky" --image ./in.png --mask ./mask.png --n 2 --out-dir ./edits --json --bg
 gptx image edit "merge style" --dry-run --image ./a.png --image ./b.png --output-format png --json
@@ -168,7 +168,7 @@ Output flags:
 - `--filename` supports `{timestamp}`, `{index}`, and `{ext}`.
 - `--model` selects the image model; default is `gpt-image-2`.
 - `--image` on `image generate` is repeatable and supplies reference attachments.
-- `--context` is repeatable and appends local text files to the prompt with fixed file boundaries. Use it for briefs, copy, requirements, and SVG source.
+- `--context` is repeatable and appends local text files to the prompt with fixed file boundaries. Use it for briefs, copy, and requirements.
 - `--background` accepts `auto`, `transparent`, or `opaque`; transparent requires `png` or `webp`.
 - `--output-format` accepts `png`, `webp`, or `jpeg`.
 - `--output-compression` accepts `0..100` and only works with `jpeg` or `webp`.
@@ -182,7 +182,7 @@ Output flags:
 Input validation:
 
 - Input images must be regular `.png`, `.jpg`, `.jpeg`, or `.webp` files smaller than 50MB.
-- SVG is not a supported `--image` upload. For logo SVG use cases, pass SVG source with `--context ./logo.svg`, or rasterize it to PNG/WebP before using `--image`.
+- SVG is not a supported `--context` or `--image` input. Rasterize SVG logos to PNG/WebP before using `--image`.
 - At most 16 input/reference images are supported.
 - Masks require at least one input image, must be PNG files smaller than 4MB, must include transparency, and must match the first input image dimensions.
 - Explicit output paths must include an extension matching `--output-format`; `.jpg` is accepted for `jpeg`.

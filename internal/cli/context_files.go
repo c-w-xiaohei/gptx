@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -14,6 +15,9 @@ func promptWithContextFiles(prompt string, paths []string) (string, error) {
 	b.WriteString(prompt)
 	b.WriteString("\n\nAdditional context files:")
 	for _, path := range paths {
+		if strings.EqualFold(filepath.Ext(path), ".svg") {
+			return "", fmt.Errorf("SVG files are not supported with --context: %s", path)
+		}
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return "", fmt.Errorf("read context file %q: %w", path, err)

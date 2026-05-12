@@ -58,7 +58,7 @@ Run dry-run image commands without an API key:
 ```bash
 go run ./cmd/gptx image generate "test icon" --dry-run --out-dir /tmp
 go run ./cmd/gptx --format json image edit "remove background" --dry-run --out /tmp/edit.png
-go run ./cmd/gptx image generate "use this logo direction" --dry-run --context ./logo.svg --out /tmp/logo-card.png --json
+go run ./cmd/gptx image generate "use this campaign brief" --dry-run --context ./brief.md --out /tmp/campaign-card.png --json
 ```
 
 Run a real API command only when `GPTX_OPENAI_API_KEY` is intentionally set:
@@ -142,7 +142,7 @@ Image edit requirements:
 - `--image` is repeatable for real edit calls.
 - `--mask` is optional.
 - `--context <path>` is repeatable for image generate/edit and appends local text files to the prompt with fixed file boundaries.
-- SVG files are not `--image` attachments; pass SVG source with `--context ./logo.svg` or rasterize to PNG/WebP before using `--image`.
+- SVG files are not `--context` or `--image` inputs; rasterize SVG logos to PNG/WebP before using `--image`.
 - Support multiple returned images.
 - Validate planned output paths before paid/remote API calls.
 
